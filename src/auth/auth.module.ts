@@ -1,0 +1,42 @@
+// src/auth/auth.module.ts
+
+import { Module } from '@nestjs/common';
+import { JwtModule } from '@nestjs/jwt';
+import { PassportModule } from '@nestjs/passport';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+
+import { AuthController } from './auth.controller';
+import { AuthService } from './auth.service';
+import { JwtStrategy } from './strategies/jwt.strategy';
+import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
+import { User } from './users/entities/user.entity';
+
+@Module({
+  imports: [
+    // Entité User accessible dans ce module
+    TypeOrmModule.forFeature([User]),
+
+    PassportModule.register({ defaultStrategy: 'jwt' }),
+
+    // Configuration du JwtModule avec la clé secrète issue des variables d'environnement
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        secret: config.get<string>('JWT_SECRET'),
+        signOptions: {
+          expiresIn: config.get<string>('JWT_EXPIRES_IN', '15m'),
+        },
+      }),
+    }),
+  ],
+  controllers: [AuthController],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    JwtRefreshStrategy,
+  ],
+  exports: [AuthService, JwtModule, PassportModule],
+})
+export class AuthModule {}
