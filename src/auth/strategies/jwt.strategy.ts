@@ -7,11 +7,14 @@ import { Repository } from 'typeorm';
 import { User } from '../users/entities/user.entity';
 
 export interface JwtPayload {
-  sub: string;       // user id
+  sub: string;
   email: string;
   role: string;
-  iat?: number;
-  exp?: number;
+}
+
+export interface JwtPayloadDecoded extends JwtPayload {
+  iat: number;
+  exp: number;
 }
 
 @Injectable()
@@ -34,7 +37,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
 
   async validate(payload: JwtPayload): Promise<User> {
     const user = await this.userRepository.findOne({
-      where: { id: payload.sub, actif: true },
+      where: { id: payload.sub },
     });
 
     if (!user) {
