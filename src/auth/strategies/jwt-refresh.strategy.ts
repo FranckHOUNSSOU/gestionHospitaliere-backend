@@ -10,6 +10,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../users/entities/user.entity';
 import * as bcrypt from 'bcrypt';
+import type { JwtPayload } from '../strategies/jwt.strategy';
 
 @Injectable()
 export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh') {
@@ -31,15 +32,15 @@ export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh'
     super(options);
   }
 
-  async validate(req: Request, payload: { sub: string; email: string }): Promise<User> {
+  async validate(req: Request, payload: JwtPayload): Promise<User> {
     const authHeader = req.headers.authorization;
     if (!authHeader) throw new UnauthorizedException('Refresh token manquant.');
 
     const refreshToken = authHeader.replace('Bearer ', '').trim();
 
     const user = await this.userRepository.findOne({
-      where: { id: payload.sub, actif: true },
-      select: ['id', 'email', 'role', 'actif', 'refreshToken'],
+      where: { id: payload.sub },
+      select: ['id', 'email', 'role', 'refreshToken'],
     });
 
     if (!user || !user.refreshToken) {
