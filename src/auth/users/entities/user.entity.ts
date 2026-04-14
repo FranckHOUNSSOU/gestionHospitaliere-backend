@@ -8,6 +8,7 @@ import {
   BeforeUpdate,
 } from 'typeorm';
 import * as bcrypt from 'bcrypt';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export enum UserRole {
   MEDECIN = 'MEDECIN',
@@ -17,42 +18,60 @@ export enum UserRole {
 
 @Entity('users')
 export class User {
+  @ApiProperty({ example: 'uuid-xxxx-xxxx', description: 'Identifiant unique (UUID)' })
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
+  @ApiProperty({ example: 'Dupont', description: 'Nom de famille' })
   @Column({ length: 100 })
   nom!: string;
 
+  @ApiProperty({ example: 'Jean', description: 'Prénom' })
   @Column({ length: 100 })
   prenom!: string;
 
+  @ApiProperty({ example: 'jean.dupont@hopital.bj', description: 'Adresse email (unique)' })
   @Column({ unique: true, length: 150 })
   email!: string;
 
   @Column({ select: false })
   motDePasse!: string;
 
-  @Column({ length: 20, nullable: true })
+  @ApiPropertyOptional({ example: '+22997000000', description: 'Numéro de téléphone', nullable: true })
+  @Column({ type: 'varchar', length: 20, nullable: true })
   telephone!: string | null;
 
+  @ApiProperty({ enum: UserRole, example: UserRole.MEDECIN, description: 'Rôle de l\'utilisateur' })
   @Column({
     type: 'enum',
     enum: UserRole,
   })
   role!: UserRole;
 
-  @Column({ length: 100, nullable: true })
+  @ApiPropertyOptional({ example: 'Cardiologie', description: 'Service hospitalier', nullable: true })
+  @Column({ type: 'varchar', length: 100, nullable: true })
   service!: string | null;
 
-  @Column({ length: 50, nullable: true })
+  @ApiPropertyOptional({ example: 'ORD-2024-001', description: 'Numéro d\'ordre professionnel', nullable: true })
+  @Column({ type: 'varchar', length: 50, nullable: true })
   numeroOrdre!: string | null;
 
-  @Column({ nullable: true, select: false })
+  @ApiProperty({ example: true, description: 'Indique si le compte est actif. Les ADMINISTRATEUR sont actifs dès la création, les autres nécessitent une validation.' })
+  @Column({ default: false })
+  actif!: boolean;
+
+  @ApiPropertyOptional({ example: 'uuid-admin-xxxx', description: 'UUID de l\'administrateur ayant créé ce compte', nullable: true })
+  @Column({ type: 'uuid', nullable: true })
+  createdBy!: string | null;
+
+  @Column({ type: 'text', nullable: true, select: false })
   refreshToken!: string | null;
 
+  @ApiProperty({ example: '2026-04-14T10:00:00.000Z', description: 'Date de création du compte' })
   @CreateDateColumn()
   createdAt!: Date;
 
+  @ApiProperty({ example: '2026-04-14T10:00:00.000Z', description: 'Date de dernière modification' })
   @UpdateDateColumn()
   updatedAt!: Date;
 

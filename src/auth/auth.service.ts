@@ -3,6 +3,7 @@ import {
   UnauthorizedException,
   ConflictException,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -10,9 +11,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 
-import { User } from './users/entities/user.entity';
+import { User, UserRole } from './users/entities/user.entity';
 import { LoginDto } from './dto/login.dto';
 import { CreateUserDto } from './users/dto/create-user.dto';
+import { CreateUserByAdminDto } from './users/dto/create-user-by-admin.dto';
 import { JwtPayload } from './strategies/jwt.strategy';
 
 export interface AuthTokens {
@@ -41,29 +43,102 @@ export class AuthService {
     private readonly configService: ConfigService,
   ) {}
 
+  // ── INSCRIPTION ADMINISTRATEUR (unique dans le système) ──────────────────
   async inscrire(dto: CreateUserDto): Promise<{ message: string }> {
-    const existant = await this.userRepository.findOne({
+    if (dto.role !== UserRole.ADMINISTRATEUR) {
+      throw new ForbiddenException(
+        'L\'inscription publique est réservée à l\'administrateur. Les autres comptes sont créés par l\'administrateur.',
+      );
+    }
+
+    const adminExistant = await this.userRepository.findOne({
+      where: { role: UserRole.ADMINISTRATEUR },
+    });
+    if (adminExistant) {
+      throw new ConflictException('Un administrateur existe déjà dans le système.');
+    }
+
+    const emailExistant = await this.userRepository.findOne({
       where: { email: dto.email },
     });
-
-    if (existant) {
+    if (emailExistant) {
       throw new ConflictException('Cette adresse email est déjà utilisée.');
     }
 
-    const user = this.userRepository.create({ ...dto });
+    const user = this.userRepository.create({ ...dto, actif: true, createdBy: null });
     await this.userRepository.save(user);
 
-    return { message: 'Compte créé avec succès.' };
+    return { message: 'Compte administrateur créé et activé.' };
+  }
+
+  // ── CRÉATION DE COMPTE PAR L'ADMINISTRATEUR ───────────────────────────────
+  async creerCompteParAdmin(
+    adminId: string,
+    dto: CreateUserByAdminDto,
+  ): Promise<{ message: string }> {
+    const emailExistant = await this.userRepository.findOne({
+      where: { email: dto.email },
+    });
+    if (emailExistant) {
+      throw new ConflictException('Cette adresse email est déjà utilisée.');
+    }
+
+    const user = this.userRepository.create({
+      ...dto,
+      actif: false,
+      createdBy: adminId,
+    });
+    await this.userRepository.save(user);
+
+    return { message: `Compte ${dto.role} créé avec succès. Il est inactif par défaut.` };
+  }
+
+  // ── ACTIVATION D'UN COMPTE ────────────────────────────────────────────────
+  async activerCompte(userId: string): Promise<{ message: string }> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Utilisateur introuvable.');
+    if (user.role === UserRole.ADMINISTRATEUR) {
+      throw new ForbiddenException('Le compte administrateur ne peut pas être modifié ainsi.');
+    }
+    if (user.actif) throw new ConflictException('Ce compte est déjà actif.');
+
+    await this.userRepository.update(userId, { actif: true });
+    return { message: 'Compte activé avec succès.' };
+  }
+
+  // ── DÉSACTIVATION D'UN COMPTE ─────────────────────────────────────────────
+  async desactiverCompte(userId: string): Promise<{ message: string }> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Utilisateur introuvable.');
+    if (user.role === UserRole.ADMINISTRATEUR) {
+      throw new ForbiddenException('Le compte administrateur ne peut pas être désactivé.');
+    }
+    if (!user.actif) throw new ConflictException('Ce compte est déjà inactif.');
+
+    await this.userRepository.update(userId, { actif: false });
+    return { message: 'Compte désactivé avec succès.' };
+  }
+
+  // ── LISTE DES UTILISATEURS ────────────────────────────────────────────────
+  async listerUtilisateurs(): Promise<Partial<User>[]> {
+    return this.userRepository.find({
+      select: ['id', 'nom', 'prenom', 'email', 'role', 'service', 'telephone', 'actif', 'createdBy', 'createdAt'],
+      order: { createdAt: 'DESC' },
+    });
   }
 
   async login(dto: LoginDto): Promise<AuthResponse> {
     const user = await this.userRepository.findOne({
       where: { email: dto.email },
-      select: ['id', 'nom', 'prenom', 'email', 'motDePasse', 'role', 'service'],
+      select: ['id', 'nom', 'prenom', 'email', 'motDePasse', 'role', 'service', 'actif'],
     });
 
     if (!user) {
       throw new UnauthorizedException('Identifiants incorrects.');
+    }
+
+    if (!user.actif) {
+      throw new UnauthorizedException('Votre compte est inactif. Contactez un administrateur.');
     }
 
     const motDePasseValide = await bcrypt.compare(dto.motDePasse, user.motDePasse);
@@ -128,11 +203,11 @@ private async _genererTokens(user: User): Promise<AuthTokens> {
   const [accessToken, refreshToken] = await Promise.all([
     this.jwtService.signAsync({ ...payload }, {
       secret: this.configService.get<string>('JWT_SECRET'),
-      expiresIn: Number(this.configService.get<string>('JWT_EXPIRES_IN', '900')), // 900s = 15min
+      expiresIn: this.configService.get('JWT_EXPIRES_IN', '900') as any,
     }),
     this.jwtService.signAsync({ ...payload }, {
       secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-      expiresIn: Number(this.configService.get<string>('JWT_REFRESH_EXPIRES_IN', '604800')), // 604800s = 7j
+      expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN', '604800') as any,
     }),
   ]);
 
