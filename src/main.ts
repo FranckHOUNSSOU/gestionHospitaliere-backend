@@ -3,6 +3,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -36,8 +37,30 @@ async function bootstrap() {
     credentials: true,
   });
 
+  // ── Swagger ───────────────────────────────────────────────────────────────
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('Gestion Hospitalière API')
+    .setDescription('API REST du système de gestion hospitalière')
+    .setVersion('1.0')
+    .addBearerAuth(
+      { type: 'http', scheme: 'bearer', bearerFormat: 'JWT', in: 'header' },
+      'access-token',
+    )
+    .addBearerAuth(
+      { type: 'http', scheme: 'bearer', bearerFormat: 'JWT', in: 'header' },
+      'refresh-token',
+    )
+    .addTag('Auth', 'Authentification et gestion de session')
+    .build();
+
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('api/docs', app, document, {
+    swaggerOptions: { persistAuthorization: true },
+  });
+
   await app.listen(port);
   console.log(`Application démarrée sur http://localhost:${port}/api`);
+  console.log(`Swagger disponible sur http://localhost:${port}/api/docs`);
 }
 
 bootstrap();

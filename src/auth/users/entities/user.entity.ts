@@ -52,7 +52,7 @@ export class User {
   @Column({ default: true })
   actif: boolean;
 
-  @Column({ nullable: true, select: false })
+  @Column({ type: 'text', nullable: true, select: false })
   refreshToken: string | null;
 
   @CreateDateColumn()
