@@ -9,6 +9,13 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiBody,
+} from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { CreateUserDto } from './users/dto/create-user.dto';
@@ -17,58 +24,60 @@ import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { User } from './users/entities/user.entity';
 
+@ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  /**
-   * POST /auth/register
-   * Création d'un compte (en attente de validation par l'admin)
-   */
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Inscription', description: 'Crée un compte en attente de validation par l\'administrateur.' })
+  @ApiBody({ type: CreateUserDto })
+  @ApiResponse({ status: 201, description: 'Compte créé, en attente de validation.' })
+  @ApiResponse({ status: 409, description: 'Email déjà utilisé.' })
+  @ApiResponse({ status: 400, description: 'Données invalides.' })
   inscrire(@Body() dto: CreateUserDto) {
     return this.authService.inscrire(dto);
   }
 
-  /**
-   * POST /auth/login
-   * Connexion — retourne accessToken + refreshToken + infos utilisateur
-   */
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Connexion', description: 'Authentifie un utilisateur et retourne un access token + refresh token.' })
+  @ApiBody({ type: LoginDto })
+  @ApiResponse({ status: 200, description: 'Connexion réussie — tokens + infos utilisateur retournés.' })
+  @ApiResponse({ status: 401, description: 'Identifiants incorrects ou compte inactif.' })
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
   }
 
-  /**
-   * POST /auth/refresh
-   * Renouvellement des tokens via le refresh token (Bearer header)
-   */
   @Post('refresh')
   @UseGuards(JwtRefreshGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('refresh-token')
+  @ApiOperation({ summary: 'Renouvellement des tokens', description: 'Génère un nouveau access token + refresh token à partir du refresh token valide.' })
+  @ApiResponse({ status: 200, description: 'Nouveaux tokens générés.' })
+  @ApiResponse({ status: 401, description: 'Refresh token invalide ou expiré.' })
   rafraichir(@CurrentUser() user: User) {
     return this.authService.rafraichirTokens(user.id);
   }
 
-  /**
-   * POST /auth/logout
-   * Déconnexion — invalide le refresh token en base
-   */
   @Post('logout')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Déconnexion', description: 'Invalide le refresh token en base de données.' })
+  @ApiResponse({ status: 200, description: 'Déconnexion réussie.' })
+  @ApiResponse({ status: 401, description: 'Non authentifié.' })
   logout(@CurrentUser() user: User) {
     return this.authService.logout(user.id);
   }
 
-  /**
-   * GET /auth/profil
-   * Retourne le profil de l'utilisateur connecté
-   */
   @Get('profil')
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Profil utilisateur', description: 'Retourne les informations de l\'utilisateur actuellement connecté.' })
+  @ApiResponse({ status: 200, description: 'Profil retourné.' })
+  @ApiResponse({ status: 401, description: 'Non authentifié.' })
   profil(@CurrentUser() user: User) {
     return this.authService.profil(user.id);
   }
