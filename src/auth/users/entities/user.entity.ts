@@ -1,5 +1,3 @@
-// src/users/entities/user.entity.ts
-
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -20,48 +18,44 @@ export enum UserRole {
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column({ length: 100 })
-  nom: string;
+  nom!: string;
 
   @Column({ length: 100 })
-  prenom: string;
+  prenom!: string;
 
   @Column({ unique: true, length: 150 })
-  email: string;
+  email!: string;
 
   @Column({ select: false })
-  motDePasse: string;
+  motDePasse!: string;
 
   @Column({ length: 20, nullable: true })
-  telephone: string;
+  telephone!: string | null;
 
   @Column({
     type: 'enum',
     enum: UserRole,
   })
-  role: UserRole;
+  role!: UserRole;
 
   @Column({ length: 100, nullable: true })
-  service: string;
+  service!: string | null;
 
   @Column({ length: 50, nullable: true })
-  numeroOrdre: string;
-
-  @Column({ default: true })
-  actif: boolean;
+  numeroOrdre!: string | null;
 
   @Column({ nullable: true, select: false })
-  refreshToken: string | null;
+  refreshToken!: string | null;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 
-  // ── Hash du mot de passe avant insertion et mise à jour ──
   @BeforeInsert()
   @BeforeUpdate()
   async hashMotDePasse() {
@@ -71,7 +65,6 @@ export class User {
     }
   }
 
-  // ── Vérification du mot de passe ──
   async verifierMotDePasse(motDePassePlain: string): Promise<boolean> {
     return bcrypt.compare(motDePassePlain, this.motDePasse);
   }

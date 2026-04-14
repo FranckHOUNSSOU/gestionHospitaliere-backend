@@ -26,7 +26,7 @@ import { User } from './users/entities/user.entity';
       useFactory: (config: ConfigService) => ({
         secret: config.get<string>('JWT_SECRET'),
         signOptions: {
-          expiresIn: config.get<string>('JWT_EXPIRES_IN', '15m'),
+          expiresIn: Number(config.get<string>('JWT_EXPIRES_IN', '900')),
         },
       }),
     }),

@@ -1,5 +1,3 @@
-// src/auth/auth.service.ts
-
 import {
   Injectable,
   UnauthorizedException,
@@ -43,7 +41,6 @@ export class AuthService {
     private readonly configService: ConfigService,
   ) {}
 
-  // ── INSCRIPTION ──────────────────────────────────────────────────────────
   async inscrire(dto: CreateUserDto): Promise<{ message: string }> {
     const existant = await this.userRepository.findOne({
       where: { email: dto.email },
@@ -53,35 +50,20 @@ export class AuthService {
       throw new ConflictException('Cette adresse email est déjà utilisée.');
     }
 
-    const user = this.userRepository.create({
-      ...dto,
-      actif: false, // le compte est désactivé jusqu'à validation par l'admin
-    });
-
+    const user = this.userRepository.create({ ...dto });
     await this.userRepository.save(user);
 
-    return {
-      message:
-        'Votre demande a été enregistrée. Votre compte sera activé par un administrateur.',
-    };
+    return { message: 'Compte créé avec succès.' };
   }
 
-  // ── CONNEXION ─────────────────────────────────────────────────────────────
   async login(dto: LoginDto): Promise<AuthResponse> {
-    // Récupération avec le mot de passe (select: false sur la colonne)
     const user = await this.userRepository.findOne({
       where: { email: dto.email },
-      select: ['id', 'nom', 'prenom', 'email', 'motDePasse', 'role', 'service', 'actif'],
+      select: ['id', 'nom', 'prenom', 'email', 'motDePasse', 'role', 'service'],
     });
 
     if (!user) {
       throw new UnauthorizedException('Identifiants incorrects.');
-    }
-
-    if (!user.actif) {
-      throw new UnauthorizedException(
-        'Votre compte est inactif. Contactez un administrateur.',
-      );
     }
 
     const motDePasseValide = await bcrypt.compare(dto.motDePasse, user.motDePasse);
@@ -105,10 +87,9 @@ export class AuthService {
     };
   }
 
-  // ── RAFRAÎCHISSEMENT DES TOKENS ───────────────────────────────────────────
   async rafraichirTokens(userId: string): Promise<AuthTokens> {
     const user = await this.userRepository.findOne({
-      where: { id: userId, actif: true },
+      where: { id: userId },
     });
 
     if (!user) {
@@ -121,13 +102,11 @@ export class AuthService {
     return tokens;
   }
 
-  // ── DÉCONNEXION ───────────────────────────────────────────────────────────
   async logout(userId: string): Promise<{ message: string }> {
     await this.userRepository.update(userId, { refreshToken: null });
     return { message: 'Déconnexion réussie.' };
   }
 
-  // ── PROFIL UTILISATEUR CONNECTÉ ───────────────────────────────────────────
   async profil(userId: string): Promise<Partial<User>> {
     const user = await this.userRepository.findOne({
       where: { id: userId },
@@ -139,35 +118,29 @@ export class AuthService {
     return user;
   }
 
-  // ── MÉTHODES PRIVÉES ──────────────────────────────────────────────────────
+private async _genererTokens(user: User): Promise<AuthTokens> {
+  const payload: JwtPayload = {
+    sub: user.id,
+    email: user.email,
+    role: user.role as string,  // cast explicite enum -> string
+  };
 
-  private async _genererTokens(user: User): Promise<AuthTokens> {
-    const payload: JwtPayload = {
-      sub: user.id,
-      email: user.email,
-      role: user.role,
-    };
+  const [accessToken, refreshToken] = await Promise.all([
+    this.jwtService.signAsync({ ...payload }, {
+      secret: this.configService.get<string>('JWT_SECRET'),
+      expiresIn: Number(this.configService.get<string>('JWT_EXPIRES_IN', '900')), // 900s = 15min
+    }),
+    this.jwtService.signAsync({ ...payload }, {
+      secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+      expiresIn: Number(this.configService.get<string>('JWT_REFRESH_EXPIRES_IN', '604800')), // 604800s = 7j
+    }),
+  ]);
 
-    const [accessToken, refreshToken] = await Promise.all([
-      this.jwtService.signAsync(payload, {
-        secret: this.configService.get<string>('JWT_SECRET'),
-        expiresIn: this.configService.get<string>('JWT_EXPIRES_IN', '15m'),
-      }),
-      this.jwtService.signAsync(payload, {
-        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-        expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRES_IN', '7d'),
-      }),
-    ]);
+  return { accessToken, refreshToken };
+}
 
-    return { accessToken, refreshToken };
-  }
-
-  private async _sauvegarderRefreshToken(
-    userId: string,
-    refreshToken: string,
-  ): Promise<void> {
-    const salt = await bcrypt.genSalt(10);
-    const refreshTokenHashe = await bcrypt.hash(refreshToken, salt);
-    await this.userRepository.update(userId, { refreshToken: refreshTokenHashe });
+  private async _sauvegarderRefreshToken(userId: string, refreshToken: string): Promise<void> {
+    const hash = await bcrypt.hash(refreshToken, 10);
+    await this.userRepository.update(userId, { refreshToken: hash });
   }
 }
