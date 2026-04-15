@@ -5,8 +5,10 @@ import {
   Post,
   Get,
   Patch,
+  Delete,
   Body,
   Param,
+  Query,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -17,12 +19,18 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiBody,
+  ApiQuery,
+  ApiParam,
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { CreateUserDto } from './users/dto/create-user.dto';
 import { MessageResponse, AuthTokensResponse, LoginResponse } from './dto/auth.responses';
 import { CreateUserByAdminDto } from './users/dto/create-user-by-admin.dto';
+import { UpdateUserDto } from './users/dto/update-user.dto';
+import { UpdateRoleDto } from './users/dto/update-role.dto';
+import { ResetPasswordDto } from './users/dto/reset-password.dto';
+import { FilterUsersDto } from './users/dto/filter-users.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { RolesGuard } from './guards/roles.guard';
@@ -73,11 +81,83 @@ export class AuthController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMINISTRATEUR)
   @ApiBearerAuth('access-token')
-  @ApiOperation({ summary: 'Lister les utilisateurs (admin)', description: 'Retourne tous les utilisateurs du système.' })
+  @ApiOperation({
+    summary: 'Lister les utilisateurs (admin)',
+    description: 'Retourne tous les utilisateurs du système avec filtres optionnels.',
+  })
+  @ApiQuery({ name: 'role', enum: UserRole, required: false, description: 'Filtrer par rôle' })
+  @ApiQuery({ name: 'actif', type: Boolean, required: false, description: 'Filtrer par statut (true/false)' })
+  @ApiQuery({ name: 'service', type: String, required: false, description: 'Filtrer par service' })
   @ApiResponse({ status: 200, description: 'Liste des utilisateurs.', type: [User] })
   @ApiResponse({ status: 403, description: 'Accès réservé à l\'administrateur.' })
-  listerUtilisateurs() {
-    return this.authService.listerUtilisateurs();
+  listerUtilisateurs(@Query() filters: FilterUsersDto) {
+    return this.authService.listerUtilisateurs(filters);
+  }
+
+  @Get('users/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMINISTRATEUR)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Voir un utilisateur (admin)', description: 'Retourne les détails d\'un utilisateur.' })
+  @ApiParam({ name: 'id', description: 'UUID de l\'utilisateur' })
+  @ApiResponse({ status: 200, description: 'Détails de l\'utilisateur.', type: User })
+  @ApiResponse({ status: 404, description: 'Utilisateur introuvable.' })
+  @ApiResponse({ status: 403, description: 'Accès réservé à l\'administrateur.' })
+  voirUtilisateur(@Param('id') id: string) {
+    return this.authService.voirUtilisateur(id);
+  }
+
+  @Patch('users/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMINISTRATEUR)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({
+    summary: 'Modifier un compte (admin)',
+    description: 'Modifie les informations d\'un compte (hors mot de passe et rôle).',
+  })
+  @ApiParam({ name: 'id', description: 'UUID de l\'utilisateur' })
+  @ApiBody({ type: UpdateUserDto })
+  @ApiResponse({ status: 200, description: 'Compte mis à jour.', type: MessageResponse })
+  @ApiResponse({ status: 404, description: 'Utilisateur introuvable.' })
+  @ApiResponse({ status: 409, description: 'Email déjà utilisé.' })
+  @ApiResponse({ status: 403, description: 'Accès réservé à l\'administrateur.' })
+  modifierCompte(@Param('id') id: string, @Body() dto: UpdateUserDto) {
+    return this.authService.modifierCompte(id, dto);
+  }
+
+  @Patch('users/:id/role')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMINISTRATEUR)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({
+    summary: 'Changer le rôle d\'un utilisateur (admin)',
+    description: 'Modifie le rôle d\'un utilisateur (MEDECIN ou AGENT_ADMINISTRATIF uniquement).',
+  })
+  @ApiParam({ name: 'id', description: 'UUID de l\'utilisateur' })
+  @ApiBody({ type: UpdateRoleDto })
+  @ApiResponse({ status: 200, description: 'Rôle mis à jour.', type: MessageResponse })
+  @ApiResponse({ status: 400, description: 'L\'utilisateur a déjà ce rôle.' })
+  @ApiResponse({ status: 404, description: 'Utilisateur introuvable.' })
+  @ApiResponse({ status: 403, description: 'Accès réservé à l\'administrateur.' })
+  changerRole(@Param('id') id: string, @Body() dto: UpdateRoleDto) {
+    return this.authService.changerRole(id, dto);
+  }
+
+  @Patch('users/:id/reset-password')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMINISTRATEUR)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({
+    summary: 'Réinitialiser le mot de passe (admin)',
+    description: 'Définit un nouveau mot de passe provisoire pour un utilisateur.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID de l\'utilisateur' })
+  @ApiBody({ type: ResetPasswordDto })
+  @ApiResponse({ status: 200, description: 'Mot de passe réinitialisé.', type: MessageResponse })
+  @ApiResponse({ status: 404, description: 'Utilisateur introuvable.' })
+  @ApiResponse({ status: 403, description: 'Accès réservé à l\'administrateur.' })
+  reinitialiserMotDePasse(@Param('id') id: string, @Body() dto: ResetPasswordDto) {
+    return this.authService.reinitialiserMotDePasse(id, dto);
   }
 
   @Patch('users/:id/activer')
@@ -85,8 +165,10 @@ export class AuthController {
   @Roles(UserRole.ADMINISTRATEUR)
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Activer un compte (admin)', description: 'Active le compte d\'un utilisateur.' })
+  @ApiParam({ name: 'id', description: 'UUID de l\'utilisateur' })
   @ApiResponse({ status: 200, description: 'Compte activé.', type: MessageResponse })
   @ApiResponse({ status: 404, description: 'Utilisateur introuvable.' })
+  @ApiResponse({ status: 409, description: 'Compte déjà actif.' })
   @ApiResponse({ status: 403, description: 'Accès réservé à l\'administrateur.' })
   activerCompte(@Param('id') id: string) {
     return this.authService.activerCompte(id);
@@ -97,11 +179,27 @@ export class AuthController {
   @Roles(UserRole.ADMINISTRATEUR)
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Désactiver un compte (admin)', description: 'Désactive le compte d\'un utilisateur.' })
+  @ApiParam({ name: 'id', description: 'UUID de l\'utilisateur' })
   @ApiResponse({ status: 200, description: 'Compte désactivé.', type: MessageResponse })
   @ApiResponse({ status: 404, description: 'Utilisateur introuvable.' })
+  @ApiResponse({ status: 409, description: 'Compte déjà inactif.' })
   @ApiResponse({ status: 403, description: 'Accès réservé à l\'administrateur.' })
   desactiverCompte(@Param('id') id: string) {
     return this.authService.desactiverCompte(id);
+  }
+
+  @Delete('users/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMINISTRATEUR)
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Supprimer un compte (admin)', description: 'Supprime définitivement un compte utilisateur.' })
+  @ApiParam({ name: 'id', description: 'UUID de l\'utilisateur' })
+  @ApiResponse({ status: 200, description: 'Compte supprimé.', type: MessageResponse })
+  @ApiResponse({ status: 404, description: 'Utilisateur introuvable.' })
+  @ApiResponse({ status: 403, description: 'Accès réservé à l\'administrateur.' })
+  supprimerCompte(@Param('id') id: string) {
+    return this.authService.supprimerCompte(id);
   }
 
   @Post('login')
