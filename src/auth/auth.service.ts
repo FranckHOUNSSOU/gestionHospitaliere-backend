@@ -140,6 +140,7 @@ export class AuthService {
         numeroOrdre: true,
         actif: true,
         createdAt: true,
+        derniereConnexion: true,
         createur: { id: true, nom: true, prenom: true },
       },
       relations: { createur: true },
@@ -164,6 +165,7 @@ export class AuthService {
         actif: true,
         createdAt: true,
         updatedAt: true,
+        derniereConnexion: true,
         createur: { id: true, nom: true, prenom: true },
       },
       relations: { createur: true },
@@ -242,6 +244,7 @@ export class AuthService {
 
     const tokens = await this._genererTokens(user);
     await this._sauvegarderRefreshToken(user.id, tokens.refreshToken);
+    await this.userRepository.update(user.id, { derniereConnexion: new Date() });
 
     return {
       tokens,
