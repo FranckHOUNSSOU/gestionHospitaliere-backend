@@ -70,6 +70,10 @@ export class User {
   @Column({ type: 'text', nullable: true, select: false })
   refreshToken!: string | null;
 
+  @ApiPropertyOptional({ example: '2026-04-16T08:45:00.000Z', description: 'Date et heure de la dernière connexion', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
+  derniereConnexion!: Date | null;
+
   @ApiProperty({ example: '2026-04-14T10:00:00.000Z', description: 'Date de création du compte' })
   @CreateDateColumn()
   createdAt!: Date;
