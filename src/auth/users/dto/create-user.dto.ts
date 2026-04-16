@@ -17,28 +17,28 @@ export class CreateUserDto {
   @IsString()
   @IsNotEmpty({ message: 'Le nom est requis.' })
   @MaxLength(100)
-  nom: string;
+  nom!: string;
 
   @ApiProperty({ example: 'Jean', description: 'Prénom' })
   @IsString()
   @IsNotEmpty({ message: 'Le prénom est requis.' })
   @MaxLength(100)
-  prenom: string;
+  prenom!: string;
 
   @ApiProperty({ example: 'jean.dupont@hopital.bj', description: 'Adresse email (unique)' })
   @IsEmail({}, { message: 'Adresse email invalide.' })
   @IsNotEmpty()
-  email: string;
+  email!: string;
 
   @ApiProperty({ example: 'MotDePasse123', description: 'Mot de passe (min. 8 caractères)' })
   @IsString()
   @IsNotEmpty({ message: 'Le mot de passe est requis.' })
   @MinLength(8, { message: 'Le mot de passe doit contenir au moins 8 caractères.' })
-  motDePasse: string;
+  motDePasse!: string;
 
   @ApiProperty({ enum: UserRole, example: UserRole.MEDECIN, description: 'Rôle de l\'utilisateur' })
   @IsEnum(UserRole, { message: 'Rôle invalide.' })
-  role: UserRole;
+  role!: UserRole;
 
   @ApiPropertyOptional({ example: '+22997000000', description: 'Numéro de téléphone' })
   @IsOptional()

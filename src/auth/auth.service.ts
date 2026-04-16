@@ -44,54 +44,60 @@ export class AuthService {
   ) {}
 
   // ── INSCRIPTION ADMINISTRATEUR (unique dans le système) ──────────────────
-  async inscrire(dto: CreateUserDto): Promise<{ message: string }> {
-    if (dto.role !== UserRole.ADMINISTRATEUR) {
-      throw new ForbiddenException(
-        'L\'inscription publique est réservée à l\'administrateur. Les autres comptes sont créés par l\'administrateur.',
-      );
-    }
-
-    const adminExistant = await this.userRepository.findOne({
-      where: { role: UserRole.ADMINISTRATEUR },
-    });
-    if (adminExistant) {
-      throw new ConflictException('Un administrateur existe déjà dans le système.');
-    }
-
-    const emailExistant = await this.userRepository.findOne({
-      where: { email: dto.email },
-    });
-    if (emailExistant) {
-      throw new ConflictException('Cette adresse email est déjà utilisée.');
-    }
-
-    const user = this.userRepository.create({ ...dto, actif: true, createdBy: null });
-    await this.userRepository.save(user);
-
-    return { message: 'Compte administrateur créé et activé.' };
+ async inscrire(dto: CreateUserDto): Promise<{ message: string }> {
+  if (dto.role !== UserRole.ADMINISTRATEUR) {
+    throw new ForbiddenException(
+      "L'inscription publique est réservée à l'administrateur.",
+    );
   }
+
+  const adminExistant = await this.userRepository.findOne({
+    where: { role: UserRole.ADMINISTRATEUR },
+  });
+  if (adminExistant) {
+    throw new ConflictException('Un administrateur existe déjà dans le système.');
+  }
+
+  const emailExistant = await this.userRepository.findOne({
+    where: { email: dto.email },
+  });
+  if (emailExistant) {
+    throw new ConflictException('Cette adresse email est déjà utilisée.');
+  }
+
+  // ← PAS de bcrypt.hash ici — @BeforeInsert s'en charge automatiquement
+  const user = this.userRepository.create({
+    ...dto,
+    actif: true,
+    createdBy: null,
+  });
+  await this.userRepository.save(user);
+
+  return { message: 'Compte administrateur créé et activé.' };
+}
 
   // ── CRÉATION DE COMPTE PAR L'ADMINISTRATEUR ───────────────────────────────
   async creerCompteParAdmin(
-    adminId: string,
-    dto: CreateUserByAdminDto,
-  ): Promise<{ message: string }> {
-    const emailExistant = await this.userRepository.findOne({
-      where: { email: dto.email },
-    });
-    if (emailExistant) {
-      throw new ConflictException('Cette adresse email est déjà utilisée.');
-    }
-
-    const user = this.userRepository.create({
-      ...dto,
-      actif: false,
-      createdBy: adminId,
-    });
-    await this.userRepository.save(user);
-
-    return { message: `Compte ${dto.role} créé avec succès. Il est inactif par défaut.` };
+  adminId: string,
+  dto: CreateUserByAdminDto,
+): Promise<{ message: string }> {
+  const emailExistant = await this.userRepository.findOne({
+    where: { email: dto.email },
+  });
+  if (emailExistant) {
+    throw new ConflictException('Cette adresse email est déjà utilisée.');
   }
+
+  // ← PAS de bcrypt.hash ici — @BeforeInsert s'en charge automatiquement
+  const user = this.userRepository.create({
+    ...dto,
+    actif: false,
+    createdBy: adminId,
+  });
+  await this.userRepository.save(user);
+
+  return { message: `Compte ${dto.role} créé avec succès. Il est inactif par défaut.` };
+}
 
   // ── ACTIVATION D'UN COMPTE ────────────────────────────────────────────────
   async activerCompte(userId: string): Promise<{ message: string }> {
