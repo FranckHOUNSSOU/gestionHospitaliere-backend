@@ -9,7 +9,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { FindOptionsWhere, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 
 import { User, UserRole } from './users/entities/user.entity';
@@ -48,7 +48,7 @@ export class AuthService {
     private readonly configService: ConfigService,
   ) {}
 
-  // ── INSCRIPTION ADMINISTRATEUR (unique dans le système) ──────────────────
+  // ── INSCRIPTION ADMINISTRATEUR (premier admin du système, route publique) ─
   async inscrire(dto: CreateUserDto): Promise<{ message: string }> {
     if (dto.role !== UserRole.ADMINISTRATEUR) {
       throw new ForbiddenException(
@@ -70,7 +70,7 @@ export class AuthService {
       throw new ConflictException('Cette adresse email est déjà utilisée.');
     }
 
-    const user = this.userRepository.create({ ...dto, actif: true, createdBy: null });
+    const user = this.userRepository.create({ ...dto, actif: true, createur: null });
     await this.userRepository.save(user);
 
     return { message: 'Compte administrateur créé et activé.' };
@@ -88,23 +88,23 @@ export class AuthService {
       throw new ConflictException('Cette adresse email est déjà utilisée.');
     }
 
+    const actif = dto.role === UserRole.ADMINISTRATEUR ? true : false;
+
     const user = this.userRepository.create({
       ...dto,
-      actif: false,
-      createdBy: adminId,
+      actif,
+      createur: { id: adminId } as User,
     });
     await this.userRepository.save(user);
 
-    return { message: `Compte ${dto.role} créé avec succès. Il est inactif par défaut.` };
+    const statut = actif ? 'actif' : 'inactif par défaut';
+    return { message: `Compte ${dto.role} créé avec succès. Il est ${statut}.` };
   }
 
   // ── ACTIVATION D'UN COMPTE ────────────────────────────────────────────────
   async activerCompte(userId: string): Promise<{ message: string }> {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('Utilisateur introuvable.');
-    if (user.role === UserRole.ADMINISTRATEUR) {
-      throw new ForbiddenException('Le compte administrateur ne peut pas être modifié ainsi.');
-    }
     if (user.actif) throw new ConflictException('Ce compte est déjà actif.');
 
     await this.userRepository.update(userId, { actif: true });
@@ -115,9 +115,6 @@ export class AuthService {
   async desactiverCompte(userId: string): Promise<{ message: string }> {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('Utilisateur introuvable.');
-    if (user.role === UserRole.ADMINISTRATEUR) {
-      throw new ForbiddenException('Le compte administrateur ne peut pas être désactivé.');
-    }
     if (!user.actif) throw new ConflictException('Ce compte est déjà inactif.');
 
     await this.userRepository.update(userId, { actif: false });
@@ -126,13 +123,26 @@ export class AuthService {
 
   // ── LISTE DES UTILISATEURS (avec filtres optionnels) ─────────────────────
   async listerUtilisateurs(filters: FilterUsersDto): Promise<Partial<User>[]> {
-    const where: Partial<Pick<User, 'role' | 'actif' | 'service'>> = {};
+    const where: FindOptionsWhere<User> = {};
     if (filters.role !== undefined) where.role = filters.role;
     if (filters.actif !== undefined) where.actif = filters.actif;
     if (filters.service !== undefined) where.service = filters.service;
 
     return this.userRepository.find({
-      select: ['id', 'nom', 'prenom', 'email', 'role', 'service', 'telephone', 'numeroOrdre', 'actif', 'createdBy', 'createdAt'],
+      select: {
+        id: true,
+        nom: true,
+        prenom: true,
+        email: true,
+        role: true,
+        service: true,
+        telephone: true,
+        numeroOrdre: true,
+        actif: true,
+        createdAt: true,
+        createur: { id: true, nom: true, prenom: true },
+      },
+      relations: { createur: true },
       where,
       order: { createdAt: 'DESC' },
     });
@@ -142,7 +152,21 @@ export class AuthService {
   async voirUtilisateur(userId: string): Promise<Partial<User>> {
     const user = await this.userRepository.findOne({
       where: { id: userId },
-      select: ['id', 'nom', 'prenom', 'email', 'role', 'service', 'telephone', 'numeroOrdre', 'actif', 'createdBy', 'createdAt', 'updatedAt'],
+      select: {
+        id: true,
+        nom: true,
+        prenom: true,
+        email: true,
+        role: true,
+        service: true,
+        telephone: true,
+        numeroOrdre: true,
+        actif: true,
+        createdAt: true,
+        updatedAt: true,
+        createur: { id: true, nom: true, prenom: true },
+      },
+      relations: { createur: true },
     });
     if (!user) throw new NotFoundException('Utilisateur introuvable.');
     return user;
@@ -152,9 +176,6 @@ export class AuthService {
   async modifierCompte(userId: string, dto: UpdateUserDto): Promise<{ message: string }> {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('Utilisateur introuvable.');
-    if (user.role === UserRole.ADMINISTRATEUR) {
-      throw new ForbiddenException('Le compte administrateur ne peut pas être modifié ainsi.');
-    }
 
     if (dto.email && dto.email !== user.email) {
       const emailExistant = await this.userRepository.findOne({ where: { email: dto.email } });
@@ -169,9 +190,6 @@ export class AuthService {
   async changerRole(userId: string, dto: UpdateRoleDto): Promise<{ message: string }> {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('Utilisateur introuvable.');
-    if (user.role === UserRole.ADMINISTRATEUR) {
-      throw new ForbiddenException('Le rôle administrateur ne peut pas être modifié.');
-    }
     if (user.role === dto.role) {
       throw new BadRequestException(`L'utilisateur a déjà le rôle ${dto.role}.`);
     }
@@ -184,12 +202,9 @@ export class AuthService {
   async reinitialiserMotDePasse(userId: string, dto: ResetPasswordDto): Promise<{ message: string }> {
     const user = await this.userRepository.findOne({
       where: { id: userId },
-      select: ['id', 'nom', 'prenom', 'email', 'motDePasse', 'role', 'actif', 'service', 'telephone', 'numeroOrdre', 'createdBy'],
+      select: ['id', 'nom', 'prenom', 'email', 'motDePasse', 'role', 'actif', 'service', 'telephone', 'numeroOrdre'],
     });
     if (!user) throw new NotFoundException('Utilisateur introuvable.');
-    if (user.role === UserRole.ADMINISTRATEUR) {
-      throw new ForbiddenException('Le mot de passe administrateur ne peut pas être réinitialisé ainsi.');
-    }
 
     // On utilise save() pour déclencher le hook @BeforeUpdate qui hash le mot de passe
     user.motDePasse = dto.nouveauMotDePasse;
@@ -201,9 +216,6 @@ export class AuthService {
   async supprimerCompte(userId: string): Promise<{ message: string }> {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('Utilisateur introuvable.');
-    if (user.role === UserRole.ADMINISTRATEUR) {
-      throw new ForbiddenException('Le compte administrateur ne peut pas être supprimé.');
-    }
 
     await this.userRepository.delete(userId);
     return { message: 'Compte supprimé avec succès.' };
