@@ -40,7 +40,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       where: { id: payload.sub },
     });
 
-    if (!user) {
+    if (!user || !user.actif) {
       throw new UnauthorizedException('Token invalide ou utilisateur inactif.');
     }
 
