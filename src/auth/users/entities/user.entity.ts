@@ -6,6 +6,8 @@ import {
   UpdateDateColumn,
   BeforeInsert,
   BeforeUpdate,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -60,12 +62,17 @@ export class User {
   @Column({ default: false })
   actif!: boolean;
 
-  @ApiPropertyOptional({ example: 'uuid-admin-xxxx', description: 'UUID de l\'administrateur ayant créé ce compte', nullable: true })
-  @Column({ type: 'uuid', nullable: true })
-  createdBy!: string | null;
+  @ApiPropertyOptional({ description: 'Administrateur ayant créé ce compte', nullable: true })
+  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL', eager: false })
+  @JoinColumn({ name: 'createdBy' })
+  createur!: User | null;
 
   @Column({ type: 'text', nullable: true, select: false })
   refreshToken!: string | null;
+
+  @ApiPropertyOptional({ example: '2026-04-16T08:45:00.000Z', description: 'Date et heure de la dernière connexion', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
+  derniereConnexion!: Date | null;
 
   @ApiProperty({ example: '2026-04-14T10:00:00.000Z', description: 'Date de création du compte' })
   @CreateDateColumn()
