@@ -56,37 +56,37 @@ export class AuthService {
       );
     }
 
-    const adminExistant = await this.userRepository.findOne({
-      where: { role: UserRole.ADMINISTRATEUR },
-    });
-    if (adminExistant) {
-      throw new ConflictException('Un administrateur existe déjà dans le système.');
-    }
+  const adminExistant = await this.userRepository.findOne({
+    where: { role: UserRole.ADMINISTRATEUR },
+  });
+  if (adminExistant) {
+    throw new ConflictException('Un administrateur existe déjà dans le système.');
+  }
 
-    const emailExistant = await this.userRepository.findOne({
-      where: { email: dto.email },
-    });
-    if (emailExistant) {
-      throw new ConflictException('Cette adresse email est déjà utilisée.');
-    }
+  const emailExistant = await this.userRepository.findOne({
+    where: { email: dto.email },
+  });
+  if (emailExistant) {
+    throw new ConflictException('Cette adresse email est déjà utilisée.');
+  }
 
     const user = this.userRepository.create({ ...dto, actif: true, createur: null });
     await this.userRepository.save(user);
 
-    return { message: 'Compte administrateur créé et activé.' };
-  }
+  return { message: 'Compte administrateur créé et activé.' };
+}
 
   // ── CRÉATION DE COMPTE PAR L'ADMINISTRATEUR ───────────────────────────────
   async creerCompteParAdmin(
-    adminId: string,
-    dto: CreateUserByAdminDto,
-  ): Promise<{ message: string }> {
-    const emailExistant = await this.userRepository.findOne({
-      where: { email: dto.email },
-    });
-    if (emailExistant) {
-      throw new ConflictException('Cette adresse email est déjà utilisée.');
-    }
+  adminId: string,
+  dto: CreateUserByAdminDto,
+): Promise<{ message: string }> {
+  const emailExistant = await this.userRepository.findOne({
+    where: { email: dto.email },
+  });
+  if (emailExistant) {
+    throw new ConflictException('Cette adresse email est déjà utilisée.');
+  }
 
     const actif = dto.role === UserRole.ADMINISTRATEUR ? true : false;
 
