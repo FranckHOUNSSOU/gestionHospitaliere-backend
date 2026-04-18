@@ -32,7 +32,7 @@ async function bootstrap() {
   app.enableCors({
     origin: nodeEnv === 'production'
       ? ['https://votre-domaine.bj']       // URL du frontend en production
-      : ['http://localhost:5173', 'http://localhost:3001'], // Vite/React dev
+      : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3001'], // Vite/React dev
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     credentials: true,
   });
@@ -50,7 +50,11 @@ async function bootstrap() {
       { type: 'http', scheme: 'bearer', bearerFormat: 'JWT', in: 'header' },
       'refresh-token',
     )
-    .addTag('Auth', 'Authentification et gestion de session')
+    .addTag('Auth',      'Authentification et gestion de session')
+    .addTag('Services',  'Gestion des services hospitaliers')
+    .addTag('Médecins',  'Gestion des profils médecins, spécialités, diplômes, accréditations et affectations')
+    .addTag('Patients',  'Gestion des dossiers patients, allergies, traitements à risque, contacts et couvertures sociales')
+    .addTag('Séjours',   'Gestion des séjours hospitaliers, mouvements, diagnostics, prescriptions, examens, soins et volets cliniques')
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);
