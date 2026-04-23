@@ -37,11 +37,12 @@ export class CreateUserByAdminDto {
   @ApiProperty({
     enum: UserRole,
     example: UserRole.MEDECIN,
-    description: 'Rôle du compte à créer (MEDECIN, AGENT_ADMINISTRATIF ou ADMINISTRATEUR)',
+    description: 'Rôle du compte à créer (MEDECIN, AGENT_ADMINISTRATIF, AGENT_RENSEIGNEMENT ou ADMINISTRATEUR)',
   })
-  @IsIn([UserRole.MEDECIN, UserRole.AGENT_ADMINISTRATIF, UserRole.ADMINISTRATEUR], {
-    message: 'Le rôle doit être MEDECIN, AGENT_ADMINISTRATIF ou ADMINISTRATEUR.',
-  })
+  @IsIn(
+    [UserRole.MEDECIN, UserRole.AGENT_ADMINISTRATIF, UserRole.AGENT_RENSEIGNEMENT, UserRole.ADMINISTRATEUR],
+    { message: 'Le rôle doit être MEDECIN, AGENT_ADMINISTRATIF, AGENT_RENSEIGNEMENT ou ADMINISTRATEUR.' },
+  )
   role!: UserRole;
 
   @ApiPropertyOptional({ example: '+22997000000', description: 'Numéro de téléphone' })
