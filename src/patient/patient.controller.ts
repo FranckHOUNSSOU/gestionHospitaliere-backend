@@ -8,6 +8,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -19,6 +20,7 @@ import {
   ApiBearerAuth,
   ApiBody,
   ApiParam,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { PatientService } from './patient.service';
 import { Patient } from './entities/patient.entity';
@@ -26,13 +28,20 @@ import { Allergie } from './entities/allergie.entity';
 import { TraitementARisque } from './entities/traitement-a-risque.entity';
 import { ContactUrgence } from './entities/contact-urgence.entity';
 import { CouvertureSociale } from './entities/couverture-sociale.entity';
+import { User } from '../auth/users/entities/user.entity';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { CreateAllergieDto } from './dto/create-allergie.dto';
 import { CreateTraitementARisqueDto } from './dto/create-traitement-a-risque.dto';
 import { CreateContactUrgenceDto } from './dto/create-contact-urgence.dto';
 import { CreateCouvertureSocialeDto } from './dto/create-couverture-sociale.dto';
+import { CreatePatientAccueilDto } from './dto/create-patient-accueil.dto';
+import { CreatePatientCritiqueDto } from './dto/create-patient-critique.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { UserRole } from '../auth/users/entities/user.entity';
 import { MessageResponse } from '../auth/dto/auth.responses';
 
 @ApiTags('Patients')
@@ -97,6 +106,63 @@ export class PatientController {
   @ApiResponse({ status: 409, description: 'Numéro IPP déjà utilisé.' })
   update(@Param('id') id: string, @Body() dto: UpdatePatientDto): Promise<Patient> {
     return this.patientService.update(id, dto);
+  }
+
+  // ── ACCUEIL / ADMISSIONS RAPIDES ──────────────────────────────────────────
+
+  @Post('accueil')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.AGENT_RENSEIGNEMENT, UserRole.AGENT_ADMINISTRATIF, UserRole.ADMINISTRATEUR)
+  @ApiOperation({ summary: 'Accueillir un nouveau patient', description: 'Crée un dossier patient avec les informations minimales requises à l\'accueil. Génère automatiquement le numéro IPP et enregistre le contact d\'urgence.' })
+  @ApiBody({ type: CreatePatientAccueilDto })
+  @ApiResponse({ status: 201, description: 'Patient créé et contact d\'urgence enregistré.', type: Patient })
+  @ApiResponse({ status: 403, description: 'Accès refusé — rôle insuffisant.' })
+  @ApiResponse({ status: 409, description: 'Conflit IPP.' })
+  accueillirNouveauPatient(
+    @Body() dto: CreatePatientAccueilDto,
+    @CurrentUser() user: User,
+  ): Promise<Patient> {
+    return this.patientService.accueillirNouveauPatient(dto, user);
+  }
+
+  @Post('critique')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.AGENT_RENSEIGNEMENT, UserRole.AGENT_ADMINISTRATIF, UserRole.MEDECIN, UserRole.ADMINISTRATEUR)
+  @ApiOperation({ summary: 'Admettre un patient critique / inconnu', description: 'Crée un dossier provisoire pour un patient arrivant en urgence dont l\'identité est inconnue ou partielle. Le numéro IPP provisoire est au format IPP-PROV-YYYY-XXXX. Le profil devra être complété ultérieurement.' })
+  @ApiBody({ type: CreatePatientCritiqueDto })
+  @ApiResponse({ status: 201, description: 'Dossier provisoire créé.', type: Patient })
+  @ApiResponse({ status: 403, description: 'Accès refusé — rôle insuffisant.' })
+  admettrePatientCritique(
+    @Body() dto: CreatePatientCritiqueDto,
+    @CurrentUser() user: User,
+  ): Promise<Patient> {
+    return this.patientService.admettrePatientCritique(dto, user);
+  }
+
+  @Get('recherche')
+  @ApiOperation({ summary: 'Rechercher un patient', description: 'Recherche par nom, prénom ou numéro IPP (insensible à la casse). Retourne au maximum 20 résultats.' })
+  @ApiQuery({ name: 'q', description: 'Terme de recherche (nom, prénom ou IPP)', required: true, example: 'Diallo' })
+  @ApiResponse({ status: 200, description: 'Résultats de la recherche.', type: [Patient] })
+  rechercherPatient(@Query('q') q: string): Promise<Patient[]> {
+    return this.patientService.rechercherPatient(q ?? '');
+  }
+
+  @Patch(':id/completer')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.AGENT_RENSEIGNEMENT, UserRole.AGENT_ADMINISTRATIF, UserRole.ADMINISTRATEUR)
+  @ApiOperation({ summary: 'Compléter le profil d\'un patient', description: 'Met à jour les informations d\'un dossier incomplet (ex : patient critique admis sans identité complète) et passe le statut du profil à "Complet".' })
+  @ApiParam({ name: 'id', description: 'UUID du patient' })
+  @ApiBody({ type: UpdatePatientDto })
+  @ApiResponse({ status: 200, description: 'Profil complété, statut passé à Complet.', type: Patient })
+  @ApiResponse({ status: 403, description: 'Accès refusé — rôle insuffisant.' })
+  @ApiResponse({ status: 404, description: 'Patient introuvable.' })
+  completerProfil(
+    @Param('id') id: string,
+    @Body() dto: UpdatePatientDto,
+  ): Promise<Patient> {
+    return this.patientService.completerProfil(id, dto);
   }
 
   // ── ALLERGIES ─────────────────────────────────────────────────────────────

@@ -6,18 +6,21 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Patient } from './entities/patient.entity';
+import { ILike, Or, Repository } from 'typeorm';
+import { Patient, StatutProfil } from './entities/patient.entity';
 import { Allergie } from './entities/allergie.entity';
 import { TraitementARisque } from './entities/traitement-a-risque.entity';
 import { ContactUrgence } from './entities/contact-urgence.entity';
 import { CouvertureSociale } from './entities/couverture-sociale.entity';
+import { User } from '../auth/users/entities/user.entity';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { CreateAllergieDto } from './dto/create-allergie.dto';
 import { CreateTraitementARisqueDto } from './dto/create-traitement-a-risque.dto';
 import { CreateContactUrgenceDto } from './dto/create-contact-urgence.dto';
 import { CreateCouvertureSocialeDto } from './dto/create-couverture-sociale.dto';
+import { CreatePatientAccueilDto } from './dto/create-patient-accueil.dto';
+import { CreatePatientCritiqueDto } from './dto/create-patient-critique.dto';
 
 @Injectable()
 export class PatientService {
@@ -165,5 +168,102 @@ export class PatientService {
     if (!couverture) throw new NotFoundException(`Couverture sociale introuvable (id: ${id}).`);
     couverture.estActive = false;
     return this.couvertureRepo.save(couverture);
+  }
+
+  // ── ACCUEIL / ADMISSIONS RAPIDES ──────────────────────────────────────────
+
+  async accueillirNouveauPatient(dto: CreatePatientAccueilDto, creePar: User): Promise<Patient> {
+    const year   = new Date().getFullYear();
+    const count  = await this.patientRepo.count();
+    const seq    = String(count + 1).padStart(4, '0');
+    const ipp    = `IPP-${year}-${seq}`;
+
+    const conflict = await this.patientRepo.findOne({ where: { numeroIpp: ipp } });
+    if (conflict) throw new ConflictException(`Le numéro IPP généré "${ipp}" est déjà utilisé.`);
+
+    const patient = this.patientRepo.create({
+      numeroIpp:      ipp,
+      nom:            dto.nom,
+      prenom:         dto.prenom,
+      sexe:           dto.sexe,
+      dateNaissance:  new Date(dto.dateNaissance),
+      adresse:        dto.adresse,
+      telephoneMobile: dto.telephoneMobile,
+      nomJeuneFille:  dto.nomJeuneFille  ?? null,
+      lieuNaissance:  dto.lieuNaissance  ?? null,
+      nationalite:    dto.nationalite    ?? null,
+      langue:         dto.langue         ?? null,
+      ville:          dto.ville          ?? null,
+      pays:           dto.pays           ?? null,
+      telephoneFixe:  dto.telephoneFixe  ?? null,
+      email:          dto.email          ?? null,
+      statutProfil:   StatutProfil.INCOMPLET,
+      creePar,
+    } as Partial<Patient>);
+
+    const saved = await this.patientRepo.save(patient);
+
+    const contact = this.contactRepo.create({
+      nom:           dto.contactUrgenceNom,
+      prenom:        dto.contactUrgencePrenom,
+      lienParente:   dto.contactUrgenceLienParente,
+      telephone:     dto.contactUrgenceTelephone,
+      patient:       saved,
+    } as Partial<ContactUrgence>);
+    await this.contactRepo.save(contact);
+
+    return this.findOne(saved.id);
+  }
+
+  async admettrePatientCritique(dto: CreatePatientCritiqueDto, creePar: User): Promise<Patient> {
+    const year  = new Date().getFullYear();
+    const count = await this.patientRepo.count();
+    const seq   = String(count + 1).padStart(4, '0');
+    const ipp   = `IPP-PROV-${year}-${seq}`;
+
+    const conflict = await this.patientRepo.findOne({ where: { numeroIpp: ipp } });
+    if (conflict) throw new ConflictException(`Le numéro IPP provisoire "${ipp}" est déjà utilisé.`);
+
+    let dateNaissance: Date | undefined;
+    if (dto.dateNaissance) {
+      dateNaissance = new Date(dto.dateNaissance);
+    } else if (dto.ageEstime !== undefined) {
+      const approx = new Date();
+      approx.setFullYear(approx.getFullYear() - dto.ageEstime);
+      dateNaissance = approx;
+    }
+
+    const patient = this.patientRepo.create({
+      numeroIpp:     ipp,
+      nom:           dto.nom           ?? 'INCONNU',
+      prenom:        dto.prenom        ?? 'INCONNU',
+      sexe:          dto.sexe,
+      dateNaissance: dateNaissance,
+      statutProfil:  StatutProfil.INCOMPLET,
+      creePar,
+    } as Partial<Patient>);
+
+    return this.patientRepo.save(patient);
+  }
+
+  async completerProfil(id: string, dto: UpdatePatientDto): Promise<Patient> {
+    const patient = await this.findOne(id);
+    Object.assign(patient, dto);
+    patient.statutProfil = StatutProfil.COMPLET;
+    return this.patientRepo.save(patient);
+  }
+
+  async rechercherPatient(q: string): Promise<Patient[]> {
+    const terme = q.trim();
+    if (!terme) return [];
+    return this.patientRepo.find({
+      where: [
+        { nom:        ILike(`%${terme}%`) },
+        { prenom:     ILike(`%${terme}%`) },
+        { numeroIpp:  ILike(`%${terme}%`) },
+      ],
+      order: { nom: 'ASC', prenom: 'ASC' },
+      take: 20,
+    });
   }
 }
