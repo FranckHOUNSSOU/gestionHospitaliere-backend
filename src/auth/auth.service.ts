@@ -4,17 +4,22 @@ import {
   ConflictException,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { FindOptionsWhere, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 
 import { User, UserRole } from './users/entities/user.entity';
 import { LoginDto } from './dto/login.dto';
 import { CreateUserDto } from './users/dto/create-user.dto';
 import { CreateUserByAdminDto } from './users/dto/create-user-by-admin.dto';
+import { UpdateUserDto } from './users/dto/update-user.dto';
+import { UpdateRoleDto } from './users/dto/update-role.dto';
+import { ResetPasswordDto } from './users/dto/reset-password.dto';
+import { FilterUsersDto } from './users/dto/filter-users.dto';
 import { JwtPayload } from './strategies/jwt.strategy';
 
 export interface AuthTokens {
@@ -43,69 +48,63 @@ export class AuthService {
     private readonly configService: ConfigService,
   ) {}
 
-  // ── INSCRIPTION ADMINISTRATEUR (unique dans le système) ──────────────────
- async inscrire(dto: CreateUserDto): Promise<{ message: string }> {
-  if (dto.role !== UserRole.ADMINISTRATEUR) {
-    throw new ForbiddenException(
-      "L'inscription publique est réservée à l'administrateur.",
-    );
+  // ── INSCRIPTION ADMINISTRATEUR (premier admin du système, route publique) ─
+  async inscrire(dto: CreateUserDto): Promise<{ message: string }> {
+    if (dto.role !== UserRole.ADMINISTRATEUR) {
+      throw new ForbiddenException(
+        'L\'inscription publique est réservée à l\'administrateur. Les autres comptes sont créés par l\'administrateur.',
+      );
+    }
+
+    const adminExistant = await this.userRepository.findOne({
+      where: { role: UserRole.ADMINISTRATEUR },
+    });
+    if (adminExistant) {
+      throw new ConflictException('Un administrateur existe déjà dans le système.');
+    }
+
+    const emailExistant = await this.userRepository.findOne({
+      where: { email: dto.email },
+    });
+    if (emailExistant) {
+      throw new ConflictException('Cette adresse email est déjà utilisée.');
+    }
+
+    const user = this.userRepository.create({ ...dto, actif: true, createur: null });
+    await this.userRepository.save(user);
+
+    return { message: 'Compte administrateur créé et activé.' };
   }
-
-  const adminExistant = await this.userRepository.findOne({
-    where: { role: UserRole.ADMINISTRATEUR },
-  });
-  if (adminExistant) {
-    throw new ConflictException('Un administrateur existe déjà dans le système.');
-  }
-
-  const emailExistant = await this.userRepository.findOne({
-    where: { email: dto.email },
-  });
-  if (emailExistant) {
-    throw new ConflictException('Cette adresse email est déjà utilisée.');
-  }
-
-  // ← PAS de bcrypt.hash ici — @BeforeInsert s'en charge automatiquement
-  const user = this.userRepository.create({
-    ...dto,
-    actif: true,
-    createdBy: null,
-  });
-  await this.userRepository.save(user);
-
-  return { message: 'Compte administrateur créé et activé.' };
-}
 
   // ── CRÉATION DE COMPTE PAR L'ADMINISTRATEUR ───────────────────────────────
   async creerCompteParAdmin(
-  adminId: string,
-  dto: CreateUserByAdminDto,
-): Promise<{ message: string }> {
-  const emailExistant = await this.userRepository.findOne({
-    where: { email: dto.email },
-  });
-  if (emailExistant) {
-    throw new ConflictException('Cette adresse email est déjà utilisée.');
+    adminId: string,
+    dto: CreateUserByAdminDto,
+  ): Promise<{ message: string }> {
+    const emailExistant = await this.userRepository.findOne({
+      where: { email: dto.email },
+    });
+    if (emailExistant) {
+      throw new ConflictException('Cette adresse email est déjà utilisée.');
+    }
+
+    const actif = dto.role === UserRole.ADMINISTRATEUR ? true : false;
+
+    const user = this.userRepository.create({
+      ...dto,
+      actif,
+      createur: { id: adminId } as User,
+    });
+    await this.userRepository.save(user);
+
+    const statut = actif ? 'actif' : 'inactif par défaut';
+    return { message: `Compte ${dto.role} créé avec succès. Il est ${statut}.` };
   }
-
-  // ← PAS de bcrypt.hash ici — @BeforeInsert s'en charge automatiquement
-  const user = this.userRepository.create({
-    ...dto,
-    actif: false,
-    createdBy: adminId,
-  });
-  await this.userRepository.save(user);
-
-  return { message: `Compte ${dto.role} créé avec succès. Il est inactif par défaut.` };
-}
 
   // ── ACTIVATION D'UN COMPTE ────────────────────────────────────────────────
   async activerCompte(userId: string): Promise<{ message: string }> {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('Utilisateur introuvable.');
-    if (user.role === UserRole.ADMINISTRATEUR) {
-      throw new ForbiddenException('Le compte administrateur ne peut pas être modifié ainsi.');
-    }
     if (user.actif) throw new ConflictException('Ce compte est déjà actif.');
 
     await this.userRepository.update(userId, { actif: true });
@@ -116,21 +115,112 @@ export class AuthService {
   async desactiverCompte(userId: string): Promise<{ message: string }> {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('Utilisateur introuvable.');
-    if (user.role === UserRole.ADMINISTRATEUR) {
-      throw new ForbiddenException('Le compte administrateur ne peut pas être désactivé.');
-    }
     if (!user.actif) throw new ConflictException('Ce compte est déjà inactif.');
 
     await this.userRepository.update(userId, { actif: false });
     return { message: 'Compte désactivé avec succès.' };
   }
 
-  // ── LISTE DES UTILISATEURS ────────────────────────────────────────────────
-  async listerUtilisateurs(): Promise<Partial<User>[]> {
+  // ── LISTE DES UTILISATEURS (avec filtres optionnels) ─────────────────────
+  async listerUtilisateurs(filters: FilterUsersDto): Promise<Partial<User>[]> {
+    const where: FindOptionsWhere<User> = {};
+    if (filters.role !== undefined) where.role = filters.role;
+    if (filters.actif !== undefined) where.actif = filters.actif;
+    if (filters.service !== undefined) where.service = filters.service;
+
     return this.userRepository.find({
-      select: ['id', 'nom', 'prenom', 'email', 'role', 'service', 'telephone', 'actif', 'createdBy', 'createdAt'],
+      select: {
+        id: true,
+        nom: true,
+        prenom: true,
+        email: true,
+        role: true,
+        service: true,
+        telephone: true,
+        numeroOrdre: true,
+        actif: true,
+        createdAt: true,
+        derniereConnexion: true,
+        createur: { id: true, nom: true, prenom: true },
+      },
+      relations: { createur: true },
+      where,
       order: { createdAt: 'DESC' },
     });
+  }
+
+  // ── VOIR UN UTILISATEUR ───────────────────────────────────────────────────
+  async voirUtilisateur(userId: string): Promise<Partial<User>> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      select: {
+        id: true,
+        nom: true,
+        prenom: true,
+        email: true,
+        role: true,
+        service: true,
+        telephone: true,
+        numeroOrdre: true,
+        actif: true,
+        createdAt: true,
+        updatedAt: true,
+        derniereConnexion: true,
+        createur: { id: true, nom: true, prenom: true },
+      },
+      relations: { createur: true },
+    });
+    if (!user) throw new NotFoundException('Utilisateur introuvable.');
+    return user;
+  }
+
+  // ── MODIFIER LES INFOS D'UN COMPTE ───────────────────────────────────────
+  async modifierCompte(userId: string, dto: UpdateUserDto): Promise<{ message: string }> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Utilisateur introuvable.');
+
+    if (dto.email && dto.email !== user.email) {
+      const emailExistant = await this.userRepository.findOne({ where: { email: dto.email } });
+      if (emailExistant) throw new ConflictException('Cette adresse email est déjà utilisée.');
+    }
+
+    await this.userRepository.update(userId, dto);
+    return { message: 'Compte mis à jour avec succès.' };
+  }
+
+  // ── CHANGER LE RÔLE D'UN COMPTE ──────────────────────────────────────────
+  async changerRole(userId: string, dto: UpdateRoleDto): Promise<{ message: string }> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Utilisateur introuvable.');
+    if (user.role === dto.role) {
+      throw new BadRequestException(`L'utilisateur a déjà le rôle ${dto.role}.`);
+    }
+
+    await this.userRepository.update(userId, { role: dto.role });
+    return { message: `Rôle mis à jour : ${dto.role}.` };
+  }
+
+  // ── RÉINITIALISER LE MOT DE PASSE ────────────────────────────────────────
+  async reinitialiserMotDePasse(userId: string, dto: ResetPasswordDto): Promise<{ message: string }> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      select: ['id', 'nom', 'prenom', 'email', 'motDePasse', 'role', 'actif', 'service', 'telephone', 'numeroOrdre'],
+    });
+    if (!user) throw new NotFoundException('Utilisateur introuvable.');
+
+    // On utilise save() pour déclencher le hook @BeforeUpdate qui hash le mot de passe
+    user.motDePasse = dto.nouveauMotDePasse;
+    await this.userRepository.save(user);
+    return { message: 'Mot de passe réinitialisé avec succès.' };
+  }
+
+  // ── SUPPRIMER UN COMPTE ───────────────────────────────────────────────────
+  async supprimerCompte(userId: string): Promise<{ message: string }> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Utilisateur introuvable.');
+
+    await this.userRepository.delete(userId);
+    return { message: 'Compte supprimé avec succès.' };
   }
 
   async login(dto: LoginDto): Promise<AuthResponse> {
@@ -154,6 +244,7 @@ export class AuthService {
 
     const tokens = await this._genererTokens(user);
     await this._sauvegarderRefreshToken(user.id, tokens.refreshToken);
+    await this.userRepository.update(user.id, { derniereConnexion: new Date() });
 
     return {
       tokens,
