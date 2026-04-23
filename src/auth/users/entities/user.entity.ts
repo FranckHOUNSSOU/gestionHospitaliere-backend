@@ -13,10 +13,10 @@ import * as bcrypt from 'bcrypt';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export enum UserRole {
-  MEDECIN               = 'MEDECIN',
-  AGENT_ADMINISTRATIF   = 'AGENT_ADMINISTRATIF',
-  AGENT_RENSEIGNEMENT   = 'AGENT_RENSEIGNEMENT',   
-  ADMINISTRATEUR        = 'ADMINISTRATEUR',
+  MEDECIN              = 'MEDECIN',
+  AGENT_ADMINISTRATIF  = 'AGENT_ADMINISTRATIF',
+  ADMINISTRATEUR       = 'ADMINISTRATEUR',
+  AGENT_RENSEIGNEMENT  = 'AGENT_RENSEIGNEMENT',
 }
 
 @Entity('users')
