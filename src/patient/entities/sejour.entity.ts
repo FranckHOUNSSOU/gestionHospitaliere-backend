@@ -84,6 +84,10 @@ export class Sejour {
   @Column({ name: 'service_initial', type: 'varchar', length: 100, nullable: true })
   serviceInitial!: string | null;
 
+  @ApiProperty({ example: false, description: 'Indique que le profil patient doit être complété après admission critique' })
+  @Column({ name: 'profil_a_completer', type: 'boolean', default: false })
+  profilACompleter!: boolean;
+
   // ── Relations ────────────────────────────────────────────────────────────
 
   @ApiProperty({ type: () => [Mouvement], description: 'Mouvements intra-hospitaliers' })

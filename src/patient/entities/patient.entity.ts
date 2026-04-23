@@ -7,6 +7,8 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   OneToMany,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Allergie } from './allergie.entity';
@@ -14,6 +16,7 @@ import { TraitementARisque } from './traitement-a-risque.entity';
 import { ContactUrgence } from './contact-urgence.entity';
 import { CouvertureSociale } from './couverture-sociale.entity';
 import { Sejour } from './sejour.entity';
+import { User } from '../../auth/users/entities/user.entity';
 
 export enum SexePatient {
   M      = 'M',
@@ -42,6 +45,11 @@ export enum StatutReanimatoire {
   AUTORISE     = 'Autorisé',
   NON_AUTORISE = 'Non autorisé',
   CONDITIONNEL = 'Conditionnel',
+}
+
+export enum StatutProfil {
+  COMPLET   = 'Complet',
+  INCOMPLET = 'Incomplet',
 }
 
 @Entity('patients')
@@ -179,6 +187,15 @@ export class Patient {
   @ApiProperty({ type: () => [Sejour], description: 'Séjours hospitaliers' })
   @OneToMany(() => Sejour, s => s.patient)
   sejours!: Sejour[];
+
+  @ApiProperty({ enum: StatutProfil, description: 'Statut du profil patient', default: StatutProfil.INCOMPLET })
+  @Column({ name: 'statut_profil', type: 'enum', enum: StatutProfil, default: StatutProfil.INCOMPLET })
+  statutProfil!: StatutProfil;
+
+  @ApiPropertyOptional({ description: 'Utilisateur ayant créé ce dossier', nullable: true })
+  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL', eager: false })
+  @JoinColumn({ name: 'cree_par_id' })
+  creePar!: User | null;
 
   @ApiProperty({ example: '2026-04-14T10:00:00.000Z', description: 'Date de création' })
   @CreateDateColumn()
