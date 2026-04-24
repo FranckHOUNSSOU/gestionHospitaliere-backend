@@ -79,36 +79,9 @@ export class PatientController {
     return this.patientService.findByNumeroIPP(ipp);
   }
 
-  @Get(':id')
-  @ApiOperation({ summary: 'Voir un patient', description: 'Retourne le dossier patient par son identifiant.' })
-  @ApiParam({ name: 'id', description: 'UUID du patient' })
-  @ApiResponse({ status: 200, description: 'Patient trouvé.', type: Patient })
-  @ApiResponse({ status: 404, description: 'Patient introuvable.' })
-  findOne(@Param('id') id: string): Promise<Patient> {
-    return this.patientService.findOne(id);
-  }
-
-  @Get(':id/dossier')
-  @ApiOperation({ summary: 'Dossier complet d\'un patient', description: 'Retourne le dossier complet incluant toutes les données permanentes.' })
-  @ApiParam({ name: 'id', description: 'UUID du patient' })
-  @ApiResponse({ status: 200, description: 'Dossier complet.', type: Patient })
-  @ApiResponse({ status: 404, description: 'Patient introuvable.' })
-  getDossierComplet(@Param('id') id: string): Promise<Patient> {
-    return this.patientService.getDossierComplet(id);
-  }
-
-  @Patch(':id')
-  @ApiOperation({ summary: 'Modifier un patient', description: 'Met à jour les informations d\'un dossier patient.' })
-  @ApiParam({ name: 'id', description: 'UUID du patient' })
-  @ApiBody({ type: UpdatePatientDto })
-  @ApiResponse({ status: 200, description: 'Patient mis à jour.', type: Patient })
-  @ApiResponse({ status: 404, description: 'Patient introuvable.' })
-  @ApiResponse({ status: 409, description: 'Numéro IPP déjà utilisé.' })
-  update(@Param('id') id: string, @Body() dto: UpdatePatientDto): Promise<Patient> {
-    return this.patientService.update(id, dto);
-  }
-
   // ── ACCUEIL / ADMISSIONS RAPIDES ──────────────────────────────────────────
+  // Ces routes statiques DOIVENT être déclarées avant @Get(':id') / @Patch(':id')
+  // sinon NestJS capturerait 'accueil', 'critique', 'recherche' comme des :id.
 
   @Post('accueil')
   @HttpCode(HttpStatus.CREATED)
@@ -147,6 +120,35 @@ export class PatientController {
   @ApiResponse({ status: 200, description: 'Résultats de la recherche.', type: [Patient] })
   rechercherPatient(@Query('q') q: string): Promise<Patient[]> {
     return this.patientService.rechercherPatient(q ?? '');
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Voir un patient', description: 'Retourne le dossier patient par son identifiant.' })
+  @ApiParam({ name: 'id', description: 'UUID du patient' })
+  @ApiResponse({ status: 200, description: 'Patient trouvé.', type: Patient })
+  @ApiResponse({ status: 404, description: 'Patient introuvable.' })
+  findOne(@Param('id') id: string): Promise<Patient> {
+    return this.patientService.findOne(id);
+  }
+
+  @Get(':id/dossier')
+  @ApiOperation({ summary: 'Dossier complet d\'un patient', description: 'Retourne le dossier complet incluant toutes les données permanentes.' })
+  @ApiParam({ name: 'id', description: 'UUID du patient' })
+  @ApiResponse({ status: 200, description: 'Dossier complet.', type: Patient })
+  @ApiResponse({ status: 404, description: 'Patient introuvable.' })
+  getDossierComplet(@Param('id') id: string): Promise<Patient> {
+    return this.patientService.getDossierComplet(id);
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Modifier un patient', description: 'Met à jour les informations d\'un dossier patient.' })
+  @ApiParam({ name: 'id', description: 'UUID du patient' })
+  @ApiBody({ type: UpdatePatientDto })
+  @ApiResponse({ status: 200, description: 'Patient mis à jour.', type: Patient })
+  @ApiResponse({ status: 404, description: 'Patient introuvable.' })
+  @ApiResponse({ status: 409, description: 'Numéro IPP déjà utilisé.' })
+  update(@Param('id') id: string, @Body() dto: UpdatePatientDto): Promise<Patient> {
+    return this.patientService.update(id, dto);
   }
 
   @Patch(':id/completer')
