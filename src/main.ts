@@ -31,8 +31,8 @@ async function bootstrap() {
   // ── CORS (à adapter selon l'origine de ton frontend) ─────────────────────
   app.enableCors({
     origin: nodeEnv === 'production'
-      ? ['https://votre-domaine.bj']       // URL du frontend en production
-      : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3001'], // Vite/React dev
+      ? ['https://votre-domaine.bj']
+      : true,                              // autorise toutes les origines en développement
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     credentials: true,
   });
