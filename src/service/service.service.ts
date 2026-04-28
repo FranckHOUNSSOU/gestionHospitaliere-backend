@@ -8,6 +8,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Service } from './service.entity';
+import { Pole } from './pole.entity';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
 
@@ -16,6 +17,8 @@ export class ServiceService {
   constructor(
     @InjectRepository(Service)
     private readonly serviceRepository: Repository<Service>,
+    @InjectRepository(Pole)
+    private readonly poleRepository: Repository<Pole>,
   ) {}
 
   // ── CRÉER UN SERVICE ──────────────────────────────────────────────────────
@@ -27,8 +30,14 @@ export class ServiceService {
       throw new ConflictException(`Le code "${dto.code}" est déjà attribué à un autre service.`);
     }
 
+    const pole = await this.poleRepository.findOne({ where: { id: dto.poleId } });
+    if (!pole) throw new NotFoundException(`Pôle introuvable (id: ${dto.poleId}).`);
+
     const service = this.serviceRepository.create({
-      ...dto,
+      nom:       dto.nom,
+      code:      dto.code,
+      type:      dto.type,
+      pole,
       etage:     dto.etage     ?? null,
       batiment:  dto.batiment  ?? null,
       telephone: dto.telephone ?? null,
@@ -36,9 +45,12 @@ export class ServiceService {
     return this.serviceRepository.save(service);
   }
 
-  // ── LISTER TOUS LES SERVICES ──────────────────────────────────────────────
-  async findAll(): Promise<Service[]> {
-    return this.serviceRepository.find({ order: { nom: 'ASC' } });
+  // ── LISTER TOUS LES SERVICES (filtre optionnel par pôle) ─────────────────
+  async findAll(poleId?: string): Promise<Service[]> {
+    return this.serviceRepository.find({
+      where: poleId ? { pole: { id: poleId } } : {},
+      order: { nom: 'ASC' },
+    });
   }
 
   // ── TROUVER UN SERVICE PAR ID ─────────────────────────────────────────────
@@ -61,7 +73,14 @@ export class ServiceService {
       }
     }
 
-    Object.assign(service, dto);
+    if (dto.poleId && dto.poleId !== service.pole?.id) {
+      const pole = await this.poleRepository.findOne({ where: { id: dto.poleId } });
+      if (!pole) throw new NotFoundException(`Pôle introuvable (id: ${dto.poleId}).`);
+      service.pole = pole;
+    }
+
+    const { poleId: _, ...rest } = dto;
+    Object.assign(service, rest);
     return this.serviceRepository.save(service);
   }
 
