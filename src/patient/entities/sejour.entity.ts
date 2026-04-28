@@ -10,6 +10,7 @@ import {
   OneToMany,
   OneToOne,
   JoinColumn,
+  RelationId,
 } from 'typeorm';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Patient } from './patient.entity';
@@ -27,11 +28,11 @@ import { VoletSocial } from './volet-social.entity';
 import { VoletNutritionnel } from './volet-nutritionnel.entity';
 
 export enum ModeEntree {
-  URGENCES   = 'Urgences',
-  PROGRAMME  = 'Programmé',
-  TRANSFERT  = 'Transfert',
-  NAISSANCE  = 'Naissance',
-  AUTRE      = 'Autre',
+  URGENCES  = 'Urgences',
+  PROGRAMME = 'Programmé',
+  TRANSFERT = 'Transfert',
+  NAISSANCE = 'Naissance',
+  AUTRE     = 'Autre',
 }
 
 export enum ModeSortie {
@@ -48,19 +49,27 @@ export class Sejour {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @ManyToOne(() => Patient, p => p.sejours, { onDelete: 'RESTRICT', eager: true })
+  @ManyToOne(() => Patient, p => p.sejours, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'patient_id' })
   patient!: Patient;
 
-  @ManyToOne(() => Medecin, { onDelete: 'SET NULL', nullable: true, eager: true })
+  @ApiProperty({ example: 'uuid-patient', description: 'Identifiant du patient' })
+  @RelationId((sejour: Sejour) => sejour.patient)
+  patientId!: string;
+
+  @ManyToOne(() => Medecin, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'medecin_responsable_id' })
   medecinResponsable!: Medecin | null;
+
+  @ApiPropertyOptional({ example: 'uuid-medecin', description: 'Identifiant du médecin responsable', nullable: true })
+  @RelationId((sejour: Sejour) => sejour.medecinResponsable)
+  medecinResponsableId!: string | null;
 
   @ApiProperty({ example: 'SEJ-20240001', description: 'Numéro de séjour unique' })
   @Column({ name: 'numero_sejour', type: 'varchar', length: 20, unique: true })
   numeroSejour!: string;
 
-  @ApiProperty({ example: '2024-01-15T08:00:00.000Z', description: 'Date et heure d\'admission' })
+  @ApiProperty({ example: '2024-01-15T08:00:00.000Z', description: "Date et heure d'admission" })
   @Column({ name: 'date_admission', type: 'timestamp' })
   dateAdmission!: Date;
 
@@ -68,7 +77,7 @@ export class Sejour {
   @Column({ name: 'date_sortie', type: 'timestamp', nullable: true })
   dateSortie!: Date | null;
 
-  @ApiProperty({ enum: ModeEntree, description: 'Mode d\'entrée' })
+  @ApiProperty({ enum: ModeEntree, description: "Mode d'entrée" })
   @Column({ name: 'mode_entree', type: 'enum', enum: ModeEntree })
   modeEntree!: ModeEntree;
 
@@ -76,17 +85,9 @@ export class Sejour {
   @Column({ name: 'mode_sortie', type: 'enum', enum: ModeSortie, nullable: true })
   modeSortie!: ModeSortie | null;
 
-  @ApiProperty({ example: 'Douleurs abdominales aiguës', description: 'Motif d\'hospitalisation' })
+  @ApiProperty({ example: 'Douleurs abdominales aiguës', description: "Motif d'hospitalisation" })
   @Column({ name: 'motif_hospitalisation', type: 'text' })
   motifHospitalisation!: string;
-
-  @ApiPropertyOptional({ example: 'Chirurgie générale', description: 'Service initial d\'accueil', nullable: true })
-  @Column({ name: 'service_initial', type: 'varchar', length: 100, nullable: true })
-  serviceInitial!: string | null;
-
-  @ApiProperty({ example: false, description: 'Indique que le profil patient doit être complété après admission critique' })
-  @Column({ name: 'profil_a_completer', type: 'boolean', default: false })
-  profilACompleter!: boolean;
 
   // ── Relations ────────────────────────────────────────────────────────────
 

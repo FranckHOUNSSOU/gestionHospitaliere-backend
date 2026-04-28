@@ -1,5 +1,6 @@
 import {
   IsEmail,
+  IsEnum,
   IsIn,
   IsNotEmpty,
   IsOptional,
@@ -8,7 +9,7 @@ import {
   MaxLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { UserRole } from '../entities/user.entity';
+import { UserRole, PoleHospitalier } from '../entities/user.entity';
 
 export class CreateUserByAdminDto {
   @ApiProperty({ example: 'Dupont', description: 'Nom de famille' })
@@ -51,11 +52,18 @@ export class CreateUserByAdminDto {
   @MaxLength(20)
   telephone?: string;
 
-  @ApiPropertyOptional({ example: 'Cardiologie', description: 'Service hospitalier' })
+  @ApiPropertyOptional({
+    enum: PoleHospitalier,
+    example: PoleHospitalier.POLE_MERE,
+    description:
+      'Pôle hospitalier. ' +
+      'Obligatoire pour MEDECIN et AGENT_ADMINISTRATIF. ' +
+      'Interdit pour ADMINISTRATEUR et AGENT_RENSEIGNEMENT. ' +
+      'Valeurs : "POLE MERE", "POLE ENFANT", "POLE DES SERVICES COMMUNS".',
+  })
   @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  service?: string;
+  @IsEnum(PoleHospitalier, { message: 'Le pôle doit être "POLE MERE", "POLE ENFANT" ou "POLE DES SERVICES COMMUNS".' })
+  pole?: PoleHospitalier;
 
   @ApiPropertyOptional({ example: 'ORD-2024-001', description: 'Numéro d\'ordre professionnel' })
   @IsOptional()
