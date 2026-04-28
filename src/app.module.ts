@@ -10,7 +10,10 @@ import { PatientModule } from './patient/patient.module';
 
 // ── Entités ───────────────────────────────────────────────────────────────────
 import { User } from './auth/users/entities/user.entity';
+import { Pole } from './service/pole.entity';
 import { Service } from './service/service.entity';
+import { Chambre } from './service/chambre.entity';
+import { Lit } from './service/lit.entity';
 import { Medecin } from './medecin/entities/medecin.entity';
 import { MedecinSpecialite } from './medecin/entities/medecin-specialite.entity';
 import { MedecinDiplome } from './medecin/entities/medecin-diplome.entity';
@@ -57,8 +60,11 @@ import { VoletNutritionnel } from './patient/entities/volet-nutritionnel.entity'
         entities: [
           // Auth
           User,
-          // Service
+          // Pôle / Service / Chambre / Lit
+          Pole,
           Service,
+          Chambre,
+          Lit,
           // Médecin
           Medecin,
           MedecinSpecialite,
