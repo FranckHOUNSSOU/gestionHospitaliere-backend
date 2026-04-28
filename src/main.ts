@@ -51,7 +51,10 @@ async function bootstrap() {
       'refresh-token',
     )
     .addTag('Auth',      'Authentification et gestion de session')
-    .addTag('Services',  'Gestion des services hospitaliers')
+    .addTag('Pôles',     'Gestion des pôles hospitaliers et vue complète (admin)')
+    .addTag('Services',  'Gestion des services rattachés à un pôle (admin)')
+    .addTag('Chambres',  'Gestion des chambres par service (admin)')
+    .addTag('Lits',      'Gestion des lits par chambre (agent administratif)')
     .addTag('Médecins',  'Gestion des profils médecins, spécialités, diplômes, accréditations et affectations')
     .addTag('Patients',  'Gestion des dossiers patients, allergies, traitements à risque, contacts et couvertures sociales')
     .addTag('Séjours',   'Gestion des séjours hospitaliers, mouvements, diagnostics, prescriptions, examens, soins et volets cliniques')
