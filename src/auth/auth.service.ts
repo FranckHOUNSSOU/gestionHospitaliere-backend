@@ -35,7 +35,7 @@ export interface AuthResponse {
     prenom: string;
     email: string;
     role: string;
-    service: string | null;
+    pole: string | null;
   };
 }
 
@@ -88,6 +88,22 @@ export class AuthService {
       throw new ConflictException('Cette adresse email est déjà utilisée.');
     }
 
+    // ── Règles métier sur le champ pôle ─────────────────────────────────────
+    const rolesAvecPole = [UserRole.MEDECIN, UserRole.AGENT_ADMINISTRATIF];
+    const rolesSansPole = [UserRole.ADMINISTRATEUR, UserRole.AGENT_RENSEIGNEMENT];
+
+    if (rolesAvecPole.includes(dto.role) && !dto.pole) {
+      throw new BadRequestException(
+        `Le pôle est obligatoire pour le rôle ${dto.role}.`,
+      );
+    }
+
+    if (rolesSansPole.includes(dto.role) && dto.pole) {
+      throw new BadRequestException(
+        `Le rôle ${dto.role} ne peut pas être associé à un pôle.`,
+      );
+    }
+
     const actif = dto.role === UserRole.ADMINISTRATEUR ? true : false;
 
     const user = this.userRepository.create({
@@ -126,7 +142,7 @@ export class AuthService {
     const where: FindOptionsWhere<User> = {};
     if (filters.role !== undefined) where.role = filters.role;
     if (filters.actif !== undefined) where.actif = filters.actif;
-    if (filters.service !== undefined) where.service = filters.service;
+    if (filters.pole !== undefined) where.pole = filters.pole;
 
     return this.userRepository.find({
       select: {
@@ -135,7 +151,7 @@ export class AuthService {
         prenom: true,
         email: true,
         role: true,
-        service: true,
+        pole: true,
         telephone: true,
         numeroOrdre: true,
         actif: true,
@@ -159,7 +175,7 @@ export class AuthService {
         prenom: true,
         email: true,
         role: true,
-        service: true,
+        pole: true,
         telephone: true,
         numeroOrdre: true,
         actif: true,
@@ -204,7 +220,7 @@ export class AuthService {
   async reinitialiserMotDePasse(userId: string, dto: ResetPasswordDto): Promise<{ message: string }> {
     const user = await this.userRepository.findOne({
       where: { id: userId },
-      select: ['id', 'nom', 'prenom', 'email', 'motDePasse', 'role', 'actif', 'service', 'telephone', 'numeroOrdre'],
+      select: ['id', 'nom', 'prenom', 'email', 'motDePasse', 'role', 'actif', 'pole', 'telephone', 'numeroOrdre'],
     });
     if (!user) throw new NotFoundException('Utilisateur introuvable.');
 
@@ -226,7 +242,7 @@ export class AuthService {
   async login(dto: LoginDto): Promise<AuthResponse> {
     const user = await this.userRepository.findOne({
       where: { email: dto.email },
-      select: ['id', 'nom', 'prenom', 'email', 'motDePasse', 'role', 'service', 'actif'],
+      select: ['id', 'nom', 'prenom', 'email', 'motDePasse', 'role', 'pole', 'actif'],
     });
 
     if (!user) {
@@ -254,7 +270,7 @@ export class AuthService {
         prenom: user.prenom,
         email: user.email,
         role: user.role,
-        service: user.service ?? null,
+        pole: user.pole ?? null,
       },
     };
   }
@@ -282,7 +298,7 @@ export class AuthService {
   async profil(userId: string): Promise<Partial<User>> {
     const user = await this.userRepository.findOne({
       where: { id: userId },
-      select: ['id', 'nom', 'prenom', 'email', 'role', 'service', 'telephone', 'numeroOrdre', 'createdAt'],
+      select: ['id', 'nom', 'prenom', 'email', 'role', 'pole', 'telephone', 'numeroOrdre', 'createdAt'],
     });
 
     if (!user) throw new NotFoundException('Utilisateur introuvable.');
