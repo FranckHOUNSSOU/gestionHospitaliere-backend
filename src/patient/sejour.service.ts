@@ -4,7 +4,6 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
-  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull } from 'typeorm';
@@ -111,7 +110,6 @@ export class SejourService {
       dateAdmission: new Date(dto.dateAdmission),
       modeEntree: dto.modeEntree,
       motifHospitalisation: dto.motifHospitalisation,
-      serviceInitial: dto.serviceInitial ?? null,
     });
     return this.sejourRepo.save(sejour);
   }

@@ -36,7 +36,7 @@ export class CreateUserDto {
   @MinLength(8, { message: 'Le mot de passe doit contenir au moins 8 caractères.' })
   motDePasse!: string;
 
-  @ApiProperty({ enum: UserRole, example: UserRole.MEDECIN, description: 'Rôle de l\'utilisateur' })
+  @ApiProperty({ enum: UserRole, example: UserRole.ADMINISTRATEUR, description: 'Rôle de l\'utilisateur (ADMINISTRATEUR uniquement pour cette route)' })
   @IsEnum(UserRole, { message: 'Rôle invalide.' })
   role!: UserRole;
 
@@ -45,16 +45,4 @@ export class CreateUserDto {
   @IsString()
   @MaxLength(20)
   telephone?: string;
-
-  @ApiPropertyOptional({ example: 'Cardiologie', description: 'Service hospitalier' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  service?: string;
-
-  @ApiPropertyOptional({ example: 'ORD-2024-001', description: 'Numéro d\'ordre professionnel' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(50)
-  numeroOrdre?: string;
 }

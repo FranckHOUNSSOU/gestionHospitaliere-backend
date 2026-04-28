@@ -1,7 +1,7 @@
-import { IsBoolean, IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsEnum, IsOptional } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { UserRole } from '../entities/user.entity';
+import { UserRole, PoleHospitalier } from '../entities/user.entity';
 
 export class FilterUsersDto {
   @ApiPropertyOptional({
@@ -26,9 +26,12 @@ export class FilterUsersDto {
   @IsBoolean()
   actif?: boolean;
 
-  @ApiPropertyOptional({ example: 'Cardiologie', description: 'Filtrer par service' })
+  @ApiPropertyOptional({
+    enum: PoleHospitalier,
+    example: PoleHospitalier.POLE_MERE,
+    description: 'Filtrer par pôle',
+  })
   @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  service?: string;
+  @IsEnum(PoleHospitalier, { message: 'Le pôle doit être "POLE MERE", "POLE ENFANT" ou "POLE DES SERVICES COMMUNS".' })
+  pole?: PoleHospitalier;
 }

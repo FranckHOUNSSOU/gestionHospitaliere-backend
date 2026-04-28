@@ -34,7 +34,7 @@ import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { Roles } from './decorators/roles.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
-import { User, UserRole } from './users/entities/user.entity';
+import { User, UserRole, PoleHospitalier } from './users/entities/user.entity';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -65,10 +65,14 @@ export class AuthController {
   @ApiBearerAuth('access-token')
   @ApiOperation({
     summary: 'Créer un compte (admin)',
-    description: 'L\'administrateur crée un compte MEDECIN ou AGENT_ADMINISTRATIF. Le compte est inactif par défaut.',
+    description:
+      'L\'administrateur crée un compte utilisateur. Le compte est inactif par défaut (sauf ADMINISTRATEUR). ' +
+      'Règles sur le pôle : obligatoire pour MEDECIN et AGENT_ADMINISTRATIF, interdit pour ADMINISTRATEUR et AGENT_RENSEIGNEMENT. ' +
+      'Pôles disponibles : "POLE MERE", "POLE ENFANT", "POLE DES SERVICES COMMUNS".',
   })
   @ApiBody({ type: CreateUserByAdminDto })
   @ApiResponse({ status: 201, description: 'Compte créé avec succès.', type: MessageResponse })
+  @ApiResponse({ status: 400, description: 'Pôle manquant ou interdit pour ce rôle.' })
   @ApiResponse({ status: 409, description: 'Email déjà utilisé.' })
   @ApiResponse({ status: 403, description: 'Accès réservé à l\'administrateur.' })
   creerCompte(@CurrentUser() admin: User, @Body() dto: CreateUserByAdminDto) {
@@ -85,7 +89,7 @@ export class AuthController {
   })
   @ApiQuery({ name: 'role', enum: UserRole, required: false, description: 'Filtrer par rôle' })
   @ApiQuery({ name: 'actif', type: Boolean, required: false, description: 'Filtrer par statut (true/false)' })
-  @ApiQuery({ name: 'service', type: String, required: false, description: 'Filtrer par service' })
+  @ApiQuery({ name: 'pole', enum: PoleHospitalier, required: false, description: 'Filtrer par pôle' })
   @ApiResponse({ status: 200, description: 'Liste des utilisateurs.', type: [User] })
   @ApiResponse({ status: 403, description: 'Accès réservé à l\'administrateur.' })
   listerUtilisateurs(@Query() filters: FilterUsersDto) {

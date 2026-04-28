@@ -19,6 +19,12 @@ export enum UserRole {
   AGENT_RENSEIGNEMENT  = 'AGENT_RENSEIGNEMENT',
 }
 
+export enum PoleHospitalier {
+  POLE_MERE             = 'POLE MERE',
+  POLE_ENFANT           = 'POLE ENFANT',
+  POLE_SERVICES_COMMUNS = 'POLE DES SERVICES COMMUNS',
+}
+
 @Entity('users')
 export class User {
   @ApiProperty({ example: 'uuid-xxxx-xxxx', description: 'Identifiant unique (UUID)' })
@@ -48,9 +54,14 @@ export class User {
   @Column({ type: 'enum', enum: UserRole })
   role!: UserRole;
 
-  @ApiPropertyOptional({ example: 'Cardiologie', description: 'Service hospitalier', nullable: true })
-  @Column({ type: 'varchar', length: 100, nullable: true })
-  service!: string | null;
+  @ApiPropertyOptional({
+    enum: PoleHospitalier,
+    example: PoleHospitalier.POLE_MERE,
+    description: 'Pôle hospitalier. Obligatoire pour MEDECIN et AGENT_ADMINISTRATIF. Interdit pour ADMINISTRATEUR et AGENT_RENSEIGNEMENT.',
+    nullable: true,
+  })
+  @Column({ type: 'enum', enum: PoleHospitalier, nullable: true })
+  pole!: PoleHospitalier | null;
 
   @ApiPropertyOptional({ example: 'ORD-2024-001', description: "Numéro d'ordre professionnel", nullable: true })
   @Column({ type: 'varchar', length: 50, nullable: true })
