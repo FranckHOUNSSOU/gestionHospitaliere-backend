@@ -6,8 +6,11 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Pole } from './pole.entity';
 
 export enum TypeService {
   MEDECINE    = 'Médecine',
@@ -40,6 +43,11 @@ export class Service {
   @ApiProperty({ enum: TypeService, description: 'Type de service médical' })
   @Column({ type: 'enum', enum: TypeService })
   type!: TypeService;
+
+  @ApiProperty({ description: 'Pôle hospitalier auquel appartient ce service' })
+  @ManyToOne(() => Pole, { onDelete: 'RESTRICT', eager: true, nullable: false })
+  @JoinColumn({ name: 'pole_id' })
+  pole!: Pole;
 
   @ApiPropertyOptional({ example: '2ème', description: 'Étage du service', nullable: true })
   @Column({ type: 'varchar', length: 20, nullable: true })
