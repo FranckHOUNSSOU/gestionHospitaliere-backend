@@ -2,7 +2,7 @@
 
 import { IsEnum, IsOptional, IsString } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { PoleHospitalier } from '../../auth/users/entities/user.entity';
+import { PoleHospitalier } from '../pole.entity';
 
 export class CreatePoleDto {
   @ApiProperty({

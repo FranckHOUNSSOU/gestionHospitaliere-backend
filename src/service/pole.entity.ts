@@ -1,5 +1,3 @@
-// src/service/pole.entity.ts
-
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -8,7 +6,12 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { PoleHospitalier } from '../auth/users/entities/user.entity';
+
+export enum PoleHospitalier {
+  POLE_MERE             = 'POLE MERE',
+  POLE_ENFANT           = 'POLE ENFANT',
+  POLE_SERVICES_COMMUNS = 'POLE DES SERVICES COMMUNS',
+}
 
 @Entity('poles')
 export class Pole {
@@ -24,19 +27,19 @@ export class Pole {
   @Column({ type: 'enum', enum: PoleHospitalier, unique: true })
   nom!: PoleHospitalier;
 
-  @ApiPropertyOptional({ example: 'Pôle dédié à la santé maternelle', description: 'Description du pôle', nullable: true })
+  @ApiPropertyOptional({ example: 'Pôle dédié à la santé maternelle', nullable: true })
   @Column({ type: 'text', nullable: true })
   description!: string | null;
 
-  @ApiProperty({ example: true, description: 'Indique si le pôle est actif' })
+  @ApiProperty({ example: true })
   @Column({ name: 'est_actif', default: true })
   estActif!: boolean;
 
-  @ApiProperty({ example: '2026-04-14T10:00:00.000Z', description: 'Date de création' })
+  @ApiProperty({ example: '2026-04-14T10:00:00.000Z' })
   @CreateDateColumn()
   createdAt!: Date;
 
-  @ApiProperty({ example: '2026-04-14T10:00:00.000Z', description: 'Date de dernière modification' })
+  @ApiProperty({ example: '2026-04-14T10:00:00.000Z' })
   @UpdateDateColumn()
   updatedAt!: Date;
 }
