@@ -1,15 +1,15 @@
 import {
   IsEmail,
-  IsEnum,
   IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
   MinLength,
   MaxLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { UserRole, PoleHospitalier } from '../entities/user.entity';
+import { UserRole } from '../entities/user.entity';
 
 export class CreateUserByAdminDto {
   @ApiProperty({ example: 'Dupont', description: 'Nom de famille' })
@@ -38,7 +38,7 @@ export class CreateUserByAdminDto {
   @ApiProperty({
     enum: UserRole,
     example: UserRole.MEDECIN,
-    description: 'Rôle du compte à créer (MEDECIN, AGENT_ADMINISTRATIF, AGENT_RENSEIGNEMENT ou ADMINISTRATEUR)',
+    description: 'Rôle du compte (MEDECIN, AGENT_ADMINISTRATIF, AGENT_RENSEIGNEMENT ou ADMINISTRATEUR)',
   })
   @IsIn(
     [UserRole.MEDECIN, UserRole.AGENT_ADMINISTRATIF, UserRole.AGENT_RENSEIGNEMENT, UserRole.ADMINISTRATEUR],
@@ -53,19 +53,22 @@ export class CreateUserByAdminDto {
   telephone?: string;
 
   @ApiPropertyOptional({
-    enum: PoleHospitalier,
-    example: PoleHospitalier.POLE_MERE,
-    description:
-      'Pôle hospitalier. ' +
-      'Obligatoire pour MEDECIN et AGENT_ADMINISTRATIF. ' +
-      'Interdit pour ADMINISTRATEUR et AGENT_RENSEIGNEMENT. ' +
-      'Valeurs : "POLE MERE", "POLE ENFANT", "POLE DES SERVICES COMMUNS".',
+    example: 'uuid-xxxx-xxxx',
+    description: 'ID du pôle hospitalier. Obligatoire pour MEDECIN et AGENT_ADMINISTRATIF.',
   })
   @IsOptional()
-  @IsEnum(PoleHospitalier, { message: 'Le pôle doit être "POLE MERE", "POLE ENFANT" ou "POLE DES SERVICES COMMUNS".' })
-  pole?: PoleHospitalier;
+  @IsUUID('4', { message: "L'identifiant du pôle doit être un UUID valide." })
+  poleId?: string;
 
-  @ApiPropertyOptional({ example: 'ORD-2024-001', description: 'Numéro d\'ordre professionnel' })
+  @ApiPropertyOptional({
+    example: 'uuid-xxxx-xxxx',
+    description: 'ID du service. Optionnel pour MEDECIN.',
+  })
+  @IsOptional()
+  @IsUUID('4', { message: "L'identifiant du service doit être un UUID valide." })
+  serviceId?: string;
+
+  @ApiPropertyOptional({ example: 'ORD-2024-001', description: "Numéro d'ordre professionnel" })
   @IsOptional()
   @IsString()
   @MaxLength(50)
