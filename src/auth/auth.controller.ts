@@ -34,7 +34,7 @@ import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { Roles } from './decorators/roles.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
-import { User, UserRole, PoleHospitalier } from './users/entities/user.entity';
+import { User, UserRole } from './users/entities/user.entity';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -89,7 +89,8 @@ export class AuthController {
   })
   @ApiQuery({ name: 'role', enum: UserRole, required: false, description: 'Filtrer par rôle' })
   @ApiQuery({ name: 'actif', type: Boolean, required: false, description: 'Filtrer par statut (true/false)' })
-  @ApiQuery({ name: 'pole', enum: PoleHospitalier, required: false, description: 'Filtrer par pôle' })
+  @ApiQuery({ name: 'poleId', type: String, required: false, description: 'Filtrer par ID du pôle (UUID)' })
+  @ApiQuery({ name: 'serviceId', type: String, required: false, description: 'Filtrer par ID du service (UUID)' })
   @ApiResponse({ status: 200, description: 'Liste des utilisateurs.', type: [User] })
   @ApiResponse({ status: 403, description: 'Accès réservé à l\'administrateur.' })
   listerUtilisateurs(@Query() filters: FilterUsersDto) {
