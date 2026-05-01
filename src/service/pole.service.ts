@@ -112,16 +112,16 @@ export class PoleService {
       }),
     );
 
-    // 3. Agents administratifs rattachés à ce pôle (via User.pole enum = pole.nom)
+    // 3. Agents administratifs rattachés à ce pôle
     const agents = await this.userRepository.find({
-      where: { pole: pole.nom, role: UserRole.AGENT_ADMINISTRATIF },
-      select: ['id', 'nom', 'prenom', 'email', 'telephone', 'actif'],
+      where: { pole: { id: pole.id }, role: UserRole.AGENT_ADMINISTRATIF },
+      select: { id: true, nom: true, prenom: true, email: true, telephone: true, actif: true },
     });
 
-    // 4. Médecins rattachés à ce pôle (via User.pole enum = pole.nom)
+    // 4. Médecins rattachés à ce pôle
     const medecinsUtilisateurs = await this.userRepository.find({
-      where: { pole: pole.nom, role: UserRole.MEDECIN },
-      select: ['id', 'nom', 'prenom', 'email', 'telephone', 'actif'],
+      where: { pole: { id: pole.id }, role: UserRole.MEDECIN },
+      select: { id: true, nom: true, prenom: true, email: true, telephone: true, actif: true },
     });
 
     return {

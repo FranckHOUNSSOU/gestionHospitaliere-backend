@@ -1,5 +1,3 @@
-// src/auth/auth.module.ts
-
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
@@ -11,15 +9,15 @@ import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
 import { User } from './users/entities/user.entity';
+import { Pole } from '../service/pole.entity';
+import { Service } from '../service/service.entity';
 
 @Module({
   imports: [
-    // Entité User accessible dans ce module
-    TypeOrmModule.forFeature([User]),
+    TypeOrmModule.forFeature([User, Pole, Service]),
 
     PassportModule.register({ defaultStrategy: 'jwt' }),
 
-    // Configuration du JwtModule avec la clé secrète issue des variables d'environnement
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

@@ -13,6 +13,8 @@ import { FindOptionsWhere, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 
 import { User, UserRole } from './users/entities/user.entity';
+import { Pole } from '../service/pole.entity';
+import { Service } from '../service/service.entity';
 import { LoginDto } from './dto/login.dto';
 import { CreateUserDto } from './users/dto/create-user.dto';
 import { CreateUserByAdminDto } from './users/dto/create-user-by-admin.dto';
@@ -44,6 +46,10 @@ export class AuthService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(Pole)
+    private readonly poleRepository: Repository<Pole>,
+    @InjectRepository(Service)
+    private readonly serviceRepository: Repository<Service>,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
   ) {}
@@ -52,62 +58,78 @@ export class AuthService {
   async inscrire(dto: CreateUserDto): Promise<{ message: string }> {
     if (dto.role !== UserRole.ADMINISTRATEUR) {
       throw new ForbiddenException(
-        'L\'inscription publique est réservée à l\'administrateur. Les autres comptes sont créés par l\'administrateur.',
+        "L'inscription publique est réservée à l'administrateur. Les autres comptes sont créés par l'administrateur.",
       );
     }
 
-  const adminExistant = await this.userRepository.findOne({
-    where: { role: UserRole.ADMINISTRATEUR },
-  });
-  if (adminExistant) {
-    throw new ConflictException('Un administrateur existe déjà dans le système.');
-  }
+    const adminExistant = await this.userRepository.findOne({
+      where: { role: UserRole.ADMINISTRATEUR },
+    });
+    if (adminExistant) {
+      throw new ConflictException('Un administrateur existe déjà dans le système.');
+    }
 
-  const emailExistant = await this.userRepository.findOne({
-    where: { email: dto.email },
-  });
-  if (emailExistant) {
-    throw new ConflictException('Cette adresse email est déjà utilisée.');
-  }
+    const emailExistant = await this.userRepository.findOne({
+      where: { email: dto.email },
+    });
+    if (emailExistant) {
+      throw new ConflictException('Cette adresse email est déjà utilisée.');
+    }
 
     const user = this.userRepository.create({ ...dto, actif: true, createur: null });
     await this.userRepository.save(user);
 
-  return { message: 'Compte administrateur créé et activé.' };
-}
+    return { message: 'Compte administrateur créé et activé.' };
+  }
 
   // ── CRÉATION DE COMPTE PAR L'ADMINISTRATEUR ───────────────────────────────
   async creerCompteParAdmin(
-  adminId: string,
-  dto: CreateUserByAdminDto,
-): Promise<{ message: string }> {
-  const emailExistant = await this.userRepository.findOne({
-    where: { email: dto.email },
-  });
-  if (emailExistant) {
-    throw new ConflictException('Cette adresse email est déjà utilisée.');
-  }
+    adminId: string,
+    dto: CreateUserByAdminDto,
+  ): Promise<{ message: string }> {
+    const emailExistant = await this.userRepository.findOne({
+      where: { email: dto.email },
+    });
+    if (emailExistant) {
+      throw new ConflictException('Cette adresse email est déjà utilisée.');
+    }
 
-    // ── Règles métier sur le champ pôle ─────────────────────────────────────
+    // ── Règles métier sur le pôle ─────────────────────────────────────────
     const rolesAvecPole = [UserRole.MEDECIN, UserRole.AGENT_ADMINISTRATIF];
     const rolesSansPole = [UserRole.ADMINISTRATEUR, UserRole.AGENT_RENSEIGNEMENT];
 
-    if (rolesAvecPole.includes(dto.role) && !dto.pole) {
-      throw new BadRequestException(
-        `Le pôle est obligatoire pour le rôle ${dto.role}.`,
-      );
+    if (rolesAvecPole.includes(dto.role) && !dto.poleId) {
+      throw new BadRequestException(`Le pôle est obligatoire pour le rôle ${dto.role}.`);
+    }
+    if (rolesSansPole.includes(dto.role) && dto.poleId) {
+      throw new BadRequestException(`Le rôle ${dto.role} ne peut pas être associé à un pôle.`);
     }
 
-    if (rolesSansPole.includes(dto.role) && dto.pole) {
-      throw new BadRequestException(
-        `Le rôle ${dto.role} ne peut pas être associé à un pôle.`,
-      );
+    // ── Résolution des entités liées ──────────────────────────────────────
+    let pole: Pole | null = null;
+    if (dto.poleId) {
+      pole = await this.poleRepository.findOne({ where: { id: dto.poleId } });
+      if (!pole) throw new NotFoundException(`Pôle introuvable (id: ${dto.poleId}).`);
     }
 
-    const actif = dto.role === UserRole.ADMINISTRATEUR ? true : false;
+    let service: Service | null = null;
+    if (dto.serviceId) {
+      service = await this.serviceRepository.findOne({ where: { id: dto.serviceId } });
+      if (!service) throw new NotFoundException(`Service introuvable (id: ${dto.serviceId}).`);
+    }
+
+    const actif = dto.role === UserRole.ADMINISTRATEUR;
 
     const user = this.userRepository.create({
-      ...dto,
+      nom:         dto.nom,
+      prenom:      dto.prenom,
+      email:       dto.email,
+      motDePasse:  dto.motDePasse,
+      role:        dto.role,
+      telephone:   dto.telephone ?? null,
+      numeroOrdre: dto.numeroOrdre ?? null,
+      pole,
+      service,
       actif,
       createur: { id: adminId } as User,
     });
@@ -140,26 +162,28 @@ export class AuthService {
   // ── LISTE DES UTILISATEURS (avec filtres optionnels) ─────────────────────
   async listerUtilisateurs(filters: FilterUsersDto): Promise<Partial<User>[]> {
     const where: FindOptionsWhere<User> = {};
-    if (filters.role !== undefined) where.role = filters.role;
-    if (filters.actif !== undefined) where.actif = filters.actif;
-    if (filters.pole !== undefined) where.pole = filters.pole;
+    if (filters.role      !== undefined) where.role    = filters.role;
+    if (filters.actif     !== undefined) where.actif   = filters.actif;
+    if (filters.poleId    !== undefined) where.pole    = { id: filters.poleId } as any;
+    if (filters.serviceId !== undefined) where.service = { id: filters.serviceId } as any;
 
     return this.userRepository.find({
       select: {
-        id: true,
-        nom: true,
-        prenom: true,
-        email: true,
-        role: true,
-        pole: true,
-        telephone: true,
-        numeroOrdre: true,
-        actif: true,
-        createdAt: true,
-        derniereConnexion: true,
-        createur: { id: true, nom: true, prenom: true },
+        id:               true,
+        nom:              true,
+        prenom:           true,
+        email:            true,
+        role:             true,
+        telephone:        true,
+        numeroOrdre:      true,
+        actif:            true,
+        createdAt:        true,
+        derniereConnexion:true,
+        pole:             { id: true, nom: true },
+        service:          { id: true, nom: true, code: true },
+        createur:         { id: true, nom: true, prenom: true },
       },
-      relations: { createur: true },
+      relations: { pole: true, service: true, createur: true },
       where,
       order: { createdAt: 'DESC' },
     });
@@ -170,21 +194,22 @@ export class AuthService {
     const user = await this.userRepository.findOne({
       where: { id: userId },
       select: {
-        id: true,
-        nom: true,
-        prenom: true,
-        email: true,
-        role: true,
-        pole: true,
-        telephone: true,
-        numeroOrdre: true,
-        actif: true,
-        createdAt: true,
-        updatedAt: true,
-        derniereConnexion: true,
-        createur: { id: true, nom: true, prenom: true },
+        id:               true,
+        nom:              true,
+        prenom:           true,
+        email:            true,
+        role:             true,
+        telephone:        true,
+        numeroOrdre:      true,
+        actif:            true,
+        createdAt:        true,
+        updatedAt:        true,
+        derniereConnexion:true,
+        pole:             { id: true, nom: true },
+        service:          { id: true, nom: true, code: true },
+        createur:         { id: true, nom: true, prenom: true },
       },
-      relations: { createur: true },
+      relations: { pole: true, service: true, createur: true },
     });
     if (!user) throw new NotFoundException('Utilisateur introuvable.');
     return user;
@@ -192,7 +217,10 @@ export class AuthService {
 
   // ── MODIFIER LES INFOS D'UN COMPTE ───────────────────────────────────────
   async modifierCompte(userId: string, dto: UpdateUserDto): Promise<{ message: string }> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: { pole: true, service: true },
+    });
     if (!user) throw new NotFoundException('Utilisateur introuvable.');
 
     if (dto.email && dto.email !== user.email) {
@@ -200,7 +228,33 @@ export class AuthService {
       if (emailExistant) throw new ConflictException('Cette adresse email est déjà utilisée.');
     }
 
-    await this.userRepository.update(userId, dto);
+    if (dto.nom)       user.nom       = dto.nom;
+    if (dto.prenom)    user.prenom    = dto.prenom;
+    if (dto.email)     user.email     = dto.email;
+    if (dto.telephone !== undefined) user.telephone = dto.telephone ?? null;
+    if (dto.numeroOrdre !== undefined) user.numeroOrdre = dto.numeroOrdre ?? null;
+
+    if (dto.poleId !== undefined) {
+      if (dto.poleId === null || dto.poleId === '') {
+        user.pole = null;
+      } else {
+        const pole = await this.poleRepository.findOne({ where: { id: dto.poleId } });
+        if (!pole) throw new NotFoundException(`Pôle introuvable (id: ${dto.poleId}).`);
+        user.pole = pole;
+      }
+    }
+
+    if (dto.serviceId !== undefined) {
+      if (dto.serviceId === null || dto.serviceId === '') {
+        user.service = null;
+      } else {
+        const service = await this.serviceRepository.findOne({ where: { id: dto.serviceId } });
+        if (!service) throw new NotFoundException(`Service introuvable (id: ${dto.serviceId}).`);
+        user.service = service;
+      }
+    }
+
+    await this.userRepository.save(user);
     return { message: 'Compte mis à jour avec succès.' };
   }
 
@@ -220,11 +274,10 @@ export class AuthService {
   async reinitialiserMotDePasse(userId: string, dto: ResetPasswordDto): Promise<{ message: string }> {
     const user = await this.userRepository.findOne({
       where: { id: userId },
-      select: ['id', 'nom', 'prenom', 'email', 'motDePasse', 'role', 'actif', 'pole', 'telephone', 'numeroOrdre'],
+      relations: { pole: true, service: true },
     });
     if (!user) throw new NotFoundException('Utilisateur introuvable.');
 
-    // On utilise save() pour déclencher le hook @BeforeUpdate qui hash le mot de passe
     user.motDePasse = dto.nouveauMotDePasse;
     await this.userRepository.save(user);
     return { message: 'Mot de passe réinitialisé avec succès.' };
@@ -239,24 +292,25 @@ export class AuthService {
     return { message: 'Compte supprimé avec succès.' };
   }
 
+  // ── CONNEXION ─────────────────────────────────────────────────────────────
   async login(dto: LoginDto): Promise<AuthResponse> {
     const user = await this.userRepository.findOne({
       where: { email: dto.email },
-      select: ['id', 'nom', 'prenom', 'email', 'motDePasse', 'role', 'pole', 'actif'],
+      select: {
+        id: true, nom: true, prenom: true, email: true,
+        motDePasse: true, role: true, actif: true,
+        pole: { id: true, nom: true },
+      },
+      relations: { pole: true },
     });
 
-    if (!user) {
-      throw new UnauthorizedException('Identifiants incorrects.');
-    }
-
+    if (!user) throw new UnauthorizedException('Identifiants incorrects.');
     if (!user.actif) {
       throw new UnauthorizedException('Votre compte est inactif. Contactez un administrateur.');
     }
 
     const motDePasseValide = await bcrypt.compare(dto.motDePasse, user.motDePasse);
-    if (!motDePasseValide) {
-      throw new UnauthorizedException('Identifiants incorrects.');
-    }
+    if (!motDePasseValide) throw new UnauthorizedException('Identifiants incorrects.');
 
     const tokens = await this._genererTokens(user);
     await this._sauvegarderRefreshToken(user.id, tokens.refreshToken);
@@ -265,67 +319,75 @@ export class AuthService {
     return {
       tokens,
       user: {
-        id: user.id,
-        nom: user.nom,
+        id:     user.id,
+        nom:    user.nom,
         prenom: user.prenom,
-        email: user.email,
-        role: user.role,
-        pole: user.pole ?? null,
+        email:  user.email,
+        role:   user.role,
+        pole:   user.pole?.nom ?? null,
       },
     };
   }
 
+  // ── RAFRAÎCHIR LES TOKENS ─────────────────────────────────────────────────
   async rafraichirTokens(userId: string): Promise<AuthTokens> {
-    const user = await this.userRepository.findOne({
-      where: { id: userId },
-    });
-
-    if (!user) {
-      throw new NotFoundException('Utilisateur introuvable.');
-    }
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Utilisateur introuvable.');
 
     const tokens = await this._genererTokens(user);
     await this._sauvegarderRefreshToken(user.id, tokens.refreshToken);
-
     return tokens;
   }
 
+  // ── DÉCONNEXION ───────────────────────────────────────────────────────────
   async logout(userId: string): Promise<{ message: string }> {
     await this.userRepository.update(userId, { refreshToken: null });
     return { message: 'Déconnexion réussie.' };
   }
 
+  // ── PROFIL UTILISATEUR CONNECTÉ ───────────────────────────────────────────
   async profil(userId: string): Promise<Partial<User>> {
     const user = await this.userRepository.findOne({
       where: { id: userId },
-      select: ['id', 'nom', 'prenom', 'email', 'role', 'pole', 'telephone', 'numeroOrdre', 'createdAt'],
+      select: {
+        id:          true,
+        nom:         true,
+        prenom:      true,
+        email:       true,
+        role:        true,
+        telephone:   true,
+        numeroOrdre: true,
+        createdAt:   true,
+        pole:        { id: true, nom: true },
+        service:     { id: true, nom: true, code: true },
+      },
+      relations: { pole: true, service: true },
     });
-
     if (!user) throw new NotFoundException('Utilisateur introuvable.');
-
     return user;
   }
 
-private async _genererTokens(user: User): Promise<AuthTokens> {
-  const payload: JwtPayload = {
-    sub: user.id,
-    email: user.email,
-    role: user.role as string,  // cast explicite enum -> string
-  };
+  // ── Privé : génération tokens ─────────────────────────────────────────────
+  private async _genererTokens(user: User): Promise<AuthTokens> {
+    const payload: JwtPayload = {
+      sub:   user.id,
+      email: user.email,
+      role:  user.role as string,
+    };
 
-  const [accessToken, refreshToken] = await Promise.all([
-    this.jwtService.signAsync({ ...payload }, {
-      secret: this.configService.get<string>('JWT_SECRET'),
-      expiresIn: this.configService.get('JWT_EXPIRES_IN', '900') as any,
-    }),
-    this.jwtService.signAsync({ ...payload }, {
-      secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-      expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN', '604800') as any,
-    }),
-  ]);
+    const [accessToken, refreshToken] = await Promise.all([
+      this.jwtService.signAsync({ ...payload }, {
+        secret:    this.configService.get<string>('JWT_SECRET'),
+        expiresIn: this.configService.get('JWT_EXPIRES_IN', '900') as any,
+      }),
+      this.jwtService.signAsync({ ...payload }, {
+        secret:    this.configService.get<string>('JWT_REFRESH_SECRET'),
+        expiresIn: this.configService.get('JWT_REFRESH_EXPIRES_IN', '604800') as any,
+      }),
+    ]);
 
-  return { accessToken, refreshToken };
-}
+    return { accessToken, refreshToken };
+  }
 
   private async _sauvegarderRefreshToken(userId: string, refreshToken: string): Promise<void> {
     const hash = await bcrypt.hash(refreshToken, 10);

@@ -11,6 +11,8 @@ import {
 } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Pole } from '../../../service/pole.entity';
+import { Service } from '../../../service/service.entity';
 
 export enum UserRole {
   MEDECIN              = 'MEDECIN',
@@ -19,59 +21,60 @@ export enum UserRole {
   AGENT_RENSEIGNEMENT  = 'AGENT_RENSEIGNEMENT',
 }
 
-export enum PoleHospitalier {
-  POLE_MERE             = 'POLE MERE',
-  POLE_ENFANT           = 'POLE ENFANT',
-  POLE_SERVICES_COMMUNS = 'POLE DES SERVICES COMMUNS',
-}
-
 @Entity('users')
 export class User {
-  @ApiProperty({ example: 'uuid-xxxx-xxxx', description: 'Identifiant unique (UUID)' })
+  @ApiProperty({ example: 'uuid-xxxx-xxxx' })
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @ApiProperty({ example: 'Dupont', description: 'Nom de famille' })
+  @ApiProperty({ example: 'Dupont' })
   @Column({ length: 100 })
   nom!: string;
 
-  @ApiProperty({ example: 'Jean', description: 'Prénom' })
+  @ApiProperty({ example: 'Jean' })
   @Column({ length: 100 })
   prenom!: string;
 
-  @ApiProperty({ example: 'jean.dupont@hopital.bj', description: 'Adresse email (unique)' })
+  @ApiProperty({ example: 'jean.dupont@hopital.bj' })
   @Column({ unique: true, length: 150 })
   email!: string;
 
   @Column({ select: false })
   motDePasse!: string;
 
-  @ApiPropertyOptional({ example: '+22997000000', description: 'Numéro de téléphone', nullable: true })
+  @ApiPropertyOptional({ example: '+22997000000', nullable: true })
   @Column({ type: 'varchar', length: 20, nullable: true })
   telephone!: string | null;
 
-  @ApiProperty({ enum: UserRole, example: UserRole.MEDECIN, description: "Rôle de l'utilisateur" })
+  @ApiProperty({ enum: UserRole, example: UserRole.MEDECIN })
   @Column({ type: 'enum', enum: UserRole })
   role!: UserRole;
 
   @ApiPropertyOptional({
-    enum: PoleHospitalier,
-    example: PoleHospitalier.POLE_MERE,
-    description: 'Pôle hospitalier. Obligatoire pour MEDECIN et AGENT_ADMINISTRATIF. Interdit pour ADMINISTRATEUR et AGENT_RENSEIGNEMENT.',
+    description: 'Pôle hospitalier. Obligatoire pour MEDECIN et AGENT_ADMINISTRATIF.',
     nullable: true,
   })
-  @Column({ type: 'enum', enum: PoleHospitalier, nullable: true })
-  pole!: PoleHospitalier | null;
+  @ManyToOne(() => Pole, { nullable: true, onDelete: 'SET NULL', eager: true })
+  @JoinColumn({ name: 'pole_id' })
+  pole!: Pole | null;
 
-  @ApiPropertyOptional({ example: 'ORD-2024-001', description: "Numéro d'ordre professionnel", nullable: true })
+  @ApiPropertyOptional({
+    description: 'Service hospitalier. Optionnel pour MEDECIN.',
+    nullable: true,
+  })
+  @ManyToOne(() => Service, { nullable: true, onDelete: 'SET NULL', eager: true })
+  @JoinColumn({ name: 'service_id' })
+  service!: Service | null;
+
+  @ApiPropertyOptional({ example: 'ORD-2024-001', nullable: true })
   @Column({ type: 'varchar', length: 50, nullable: true })
   numeroOrdre!: string | null;
 
-  @ApiProperty({ example: true, description: 'Indique si le compte est actif.' })
+  @ApiProperty({ example: true })
   @Column({ default: false })
   actif!: boolean;
 
-  @ApiPropertyOptional({ description: 'Administrateur ayant créé ce compte', nullable: true })
+  @ApiPropertyOptional({ nullable: true })
   @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL', eager: false })
   @JoinColumn({ name: 'createdBy' })
   createur!: User | null;
