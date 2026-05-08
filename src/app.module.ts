@@ -57,6 +57,9 @@ import { VoletNutritionnel } from './patient/entities/volet-nutritionnel.entity'
         username: config.get<string>('DB_USERNAME'),
         password: config.get<string>('DB_PASSWORD'),
         database: config.get<string>('DB_NAME'),
+        ssl: config.get<string>('NODE_ENV') === 'production'
+          ? { rejectUnauthorized: false }
+          : false,
         entities: [
           // Auth
           User,
