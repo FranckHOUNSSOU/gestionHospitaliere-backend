@@ -28,11 +28,12 @@ async function bootstrap() {
   // ── Préfixe global des routes ─────────────────────────────────────────────
   app.setGlobalPrefix('api');
 
-  // ── CORS (à adapter selon l'origine de ton frontend) ─────────────────────
+  // ── CORS ─────────────────────────────────────────────────────────────────
+  const corsOrigins = configService.get<string>('CORS_ORIGINS');
   app.enableCors({
     origin: nodeEnv === 'production'
-      ? ['https://votre-domaine.bj']
-      : true,                              // autorise toutes les origines en développement
+      ? corsOrigins?.split(',').map(o => o.trim()) ?? false
+      : true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     credentials: true,
   });
