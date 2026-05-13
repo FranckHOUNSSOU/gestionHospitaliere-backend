@@ -31,7 +31,10 @@ class UserInfoResponse {
   role!: string;
 
   @ApiProperty({ example: 'Cardiologie', nullable: true })
-  service!: string | null;
+  pole!: string | null;
+
+  @ApiProperty({ example: 'uuid-xxxx-xxxx', nullable: true })
+  poleId!: string | null;
 }
 
 export class LoginResponse {

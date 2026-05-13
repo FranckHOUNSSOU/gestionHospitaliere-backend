@@ -63,6 +63,10 @@ export class Diagnostic {
   @Column({ type: 'text', nullable: true })
   observations!: string | null;
 
+  @ApiProperty({ example: false, description: 'Indique si le diagnostic a été validé par le médecin' })
+  @Column({ default: false })
+  valide!: boolean;
+
   @ApiProperty({ example: '2026-04-14T10:00:00.000Z', description: 'Date de création' })
   @CreateDateColumn()
   createdAt!: Date;

@@ -55,7 +55,11 @@ export class PatientService {
 
   async findAll(): Promise<Patient[]> {
     return this.patientRepo.find({
-      relations: ['allergies', 'traitementsARisque', 'contactsUrgence', 'couverturesSociales'],
+      relations: [
+        'allergies', 'traitementsARisque', 'contactsUrgence', 'couverturesSociales',
+        'sejours', 'sejours.mouvements',
+        'sejours.medecinResponsable', 'sejours.medecinResponsable.user',
+      ],
       order: { nom: 'ASC', prenom: 'ASC' },
     });
   }
@@ -261,6 +265,11 @@ export class PatientService {
         { nom:        ILike(`%${terme}%`) },
         { prenom:     ILike(`%${terme}%`) },
         { numeroIpp:  ILike(`%${terme}%`) },
+      ],
+      relations: [
+        'allergies', 'traitementsARisque',
+        'sejours', 'sejours.mouvements',
+        'sejours.medecinResponsable', 'sejours.medecinResponsable.user',
       ],
       order: { nom: 'ASC', prenom: 'ASC' },
       take: 20,
