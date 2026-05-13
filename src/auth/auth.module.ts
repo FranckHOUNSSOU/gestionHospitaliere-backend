@@ -11,10 +11,11 @@ import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
 import { User } from './users/entities/user.entity';
 import { Pole } from '../service/pole.entity';
 import { Service } from '../service/service.entity';
+import { Medecin } from '../medecin/entities/medecin.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Pole, Service]),
+    TypeOrmModule.forFeature([User, Pole, Service, Medecin]),
 
     PassportModule.register({ defaultStrategy: 'jwt' }),
 

@@ -81,7 +81,7 @@ export class AuthController {
 
   @Get('users')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMINISTRATEUR)
+  @Roles(UserRole.ADMINISTRATEUR, UserRole.AGENT_ADMINISTRATIF)
   @ApiBearerAuth('access-token')
   @ApiOperation({
     summary: 'Lister les utilisateurs (admin)',
