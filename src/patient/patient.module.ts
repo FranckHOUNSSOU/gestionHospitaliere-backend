@@ -26,11 +26,13 @@ import { PatientController } from './patient.controller';
 import { SejourController } from './sejour.controller';
 import { AuthModule } from '../auth/auth.module';
 import { MedecinModule } from '../medecin/medecin.module';
+import { User } from '../auth/users/entities/user.entity';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([
       Patient,
+      User,
       Allergie,
       TraitementARisque,
       ContactUrgence,
