@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Body,
   Param,
   Query,
@@ -19,6 +20,7 @@ import {
 } from '@nestjs/swagger';
 import { RendezVousService } from './rendezvous.service';
 import { CreateRendezVousDto } from './dto/create-rendezvous.dto';
+import { UpdateRendezVousDto } from './dto/update-rendezvous.dto';
 import { UpdateStatutRendezVousDto } from './dto/update-statut-rendezvous.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -75,6 +77,26 @@ export class RendezVousController {
     @Query('fin')   fin?: string,
   ) {
     return this.rdvService.findForMedecin(user.id, debut, fin);
+  }
+
+  // ── MODIFIER UN RDV ──────────────────────────────────────────────────────
+
+  @Patch(':id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.AGENT_ADMINISTRATIF, UserRole.ADMINISTRATEUR)
+  @ApiOperation({ summary: 'Modifier un rendez-vous (date, heure, durée, type, motif)' })
+  update(@Param('id') id: string, @Body() dto: UpdateRendezVousDto) {
+    return this.rdvService.update(id, dto);
+  }
+
+  // ── SUPPRIMER UN RDV ─────────────────────────────────────────────────────
+
+  @Delete(':id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.AGENT_ADMINISTRATIF, UserRole.ADMINISTRATEUR)
+  @ApiOperation({ summary: 'Supprimer un rendez-vous' })
+  remove(@Param('id') id: string) {
+    return this.rdvService.remove(id);
   }
 
   // ── MODIFIER LE STATUT D'UN RDV ───────────────────────────────────────────
