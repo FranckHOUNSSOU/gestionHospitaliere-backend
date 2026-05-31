@@ -98,7 +98,7 @@ import { VoletNutritionnel } from './patient/entities/volet-nutritionnel.entity'
           // Rendez-vous
           RendezVous,
         ],
-        synchronize: true,
+        synchronize: config.get<string>('NODE_ENV') === 'development' || config.get<string>('DB_SYNC') === 'true',
         logging: config.get<string>('NODE_ENV') === 'development',
       }),
     }),
