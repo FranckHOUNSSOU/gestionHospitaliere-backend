@@ -1,11 +1,13 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
+import { Repository } from 'typeorm';
 import { RendezVous, StatutRendezVous } from './entities/rendezvous.entity';
 import { CreateRendezVousDto } from './dto/create-rendezvous.dto';
+import { UpdateRendezVousDto } from './dto/update-rendezvous.dto';
 import { Patient } from '../patient/entities/patient.entity';
 import { Medecin } from '../medecin/entities/medecin.entity';
 import { User } from '../auth/users/entities/user.entity';
+import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
 export class RendezVousService {
@@ -13,6 +15,7 @@ export class RendezVousService {
     @InjectRepository(RendezVous) private readonly rdvRepo: Repository<RendezVous>,
     @InjectRepository(Patient)   private readonly patientRepo: Repository<Patient>,
     @InjectRepository(Medecin)   private readonly medecinRepo: Repository<Medecin>,
+    private readonly notifService: NotificationService,
   ) {}
 
   async create(dto: CreateRendezVousDto, creePar: User): Promise<RendezVous> {
@@ -86,6 +89,45 @@ export class RendezVousService {
 
     const rdvs = await qb.getMany();
     return rdvs.map((r) => this.toMedecinView(r));
+  }
+
+  async update(id: string, dto: UpdateRendezVousDto): Promise<object> {
+    const rdv = await this.rdvRepo.findOne({
+      where: { id },
+      relations: ['medecin', 'medecin.user', 'patient'],
+    });
+    if (!rdv) throw new NotFoundException(`Rendez-vous ${id} introuvable`);
+
+    if (dto.dateHeure)     rdv.dateHeure    = new Date(dto.dateHeure);
+    if (dto.dureeMinutes)  rdv.dureeMinutes = dto.dureeMinutes;
+    if (dto.type)          rdv.type         = dto.type;
+    if (dto.motif !== undefined) rdv.motif  = dto.motif ?? null;
+
+    const saved = await this.rdvRepo.save(rdv);
+
+    // Notification au médecin
+    const doctorUserId = rdv.medecin?.user?.id;
+    if (doctorUserId) {
+      const patientName = rdv.patient ? `${rdv.patient.prenom} ${rdv.patient.nom}` : 'un patient';
+      const dateStr = new Date(rdv.dateHeure).toLocaleDateString('fr-FR', {
+        day: '2-digit', month: 'long', year: 'numeric',
+      });
+      const heureStr = new Date(rdv.dateHeure).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      await this.notifService.creer(
+        doctorUserId,
+        `Le rendez-vous du ${dateStr} à ${heureStr} avec ${patientName} a été modifié.`,
+        id,
+      );
+    }
+
+    return this.toSecretaireView(saved);
+  }
+
+  async remove(id: string): Promise<{ message: string }> {
+    const rdv = await this.rdvRepo.findOne({ where: { id } });
+    if (!rdv) throw new NotFoundException(`Rendez-vous ${id} introuvable`);
+    await this.rdvRepo.delete(id);
+    return { message: 'Rendez-vous supprimé.' };
   }
 
   async updateStatut(id: string, statut: StatutRendezVous): Promise<RendezVous> {
