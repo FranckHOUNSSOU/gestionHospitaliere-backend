@@ -49,6 +49,7 @@ export class RendezVousService {
       .leftJoinAndSelect('rdv.patient', 'patient')
       .leftJoinAndSelect('rdv.medecin', 'medecin')
       .leftJoinAndSelect('medecin.user', 'medecinUser')
+      .leftJoinAndSelect('medecinUser.service', 'medecinUserService')
       .orderBy('rdv.dateHeure', 'ASC');
 
     if (debut && fin) {
