@@ -6,7 +6,6 @@ import { Patient } from '../patient/entities/patient.entity';
 import { Sejour } from '../patient/entities/sejour.entity';
 import { Chambre, TypeChambre } from '../service/chambre.entity';
 import { RendezVous } from '../rendezvous/entities/rendezvous.entity';
-import { TypeExamen } from '../patient/entities/examen.entity';
 
 // Données de seed des tarifs
 const TARIFS_SEED = [
@@ -46,9 +45,13 @@ export class FacturationService implements OnModuleInit {
 
   // Seed des tarifs au démarrage si la table est vide
   async onModuleInit() {
-    const count = await this.tarifRepo.count();
-    if (count === 0) {
-      await this.tarifRepo.save(TARIFS_SEED.map(t => this.tarifRepo.create(t)));
+    try {
+      const count = await this.tarifRepo.count();
+      if (count === 0) {
+        await this.tarifRepo.save(TARIFS_SEED.map(t => this.tarifRepo.create(t)));
+      }
+    } catch {
+      // Table pas encore créée (premier démarrage en prod sans synchronize)
     }
   }
 
