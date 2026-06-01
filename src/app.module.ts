@@ -11,6 +11,8 @@ import { RendezVousModule } from './rendezvous/rendezvous.module';
 import { RendezVous } from './rendezvous/entities/rendezvous.entity';
 import { NotificationModule } from './notification/notification.module';
 import { Notification } from './notification/notification.entity';
+import { FacturationModule } from './facturation/facturation.module';
+import { Tarif } from './facturation/tarif.entity';
 
 // ── Entités ───────────────────────────────────────────────────────────────────
 import { User } from './auth/users/entities/user.entity';
@@ -101,6 +103,8 @@ import { VoletNutritionnel } from './patient/entities/volet-nutritionnel.entity'
           RendezVous,
           // Notifications
           Notification,
+          // Facturation
+          Tarif,
         ],
         synchronize: config.get<string>('NODE_ENV') === 'development' || config.get<string>('DB_SYNC') === 'true',
         logging: config.get<string>('NODE_ENV') === 'development',
@@ -114,6 +118,7 @@ import { VoletNutritionnel } from './patient/entities/volet-nutritionnel.entity'
     PatientModule,
     RendezVousModule,
     NotificationModule,
+    FacturationModule,
   ],
 })
 export class AppModule {}
