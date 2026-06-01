@@ -1,5 +1,3 @@
-// src/service/chambre.entity.ts
-
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -7,44 +5,70 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
-  OneToMany,
   JoinColumn,
 } from 'typeorm';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Service } from './service.entity';
 
+export enum TypeChambre {
+  INDIVIDUELLE    = 'INDIVIDUELLE',
+  DOUBLE          = 'DOUBLE',
+  COMMUNE         = 'COMMUNE',
+  SOINS_INTENSIFS = 'SOINS_INTENSIFS',
+  SUITE_PRIVEE    = 'SUITE_PRIVEE',
+}
+
+export enum StatutChambre {
+  DISPONIBLE     = 'DISPONIBLE',
+  OCCUPEE        = 'OCCUPEE',
+  EN_MAINTENANCE = 'EN_MAINTENANCE',
+  HORS_SERVICE   = 'HORS_SERVICE',
+}
+
 @Entity('chambres')
 export class Chambre {
-  @ApiProperty({ example: 'uuid-xxxx-xxxx', description: 'Identifiant unique (UUID)' })
+  @ApiProperty({ example: 'uuid-xxxx-xxxx' })
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @ApiProperty({ example: '101', description: 'Numéro de chambre (unique dans le service)' })
+  @ApiProperty({ example: '101' })
   @Column({ length: 20 })
   numero!: string;
 
-  @ApiPropertyOptional({ example: 'Chambre individuelle VIP', description: 'Désignation ou description de la chambre', nullable: true })
+  @ApiPropertyOptional({ example: 'Chambre individuelle VIP', nullable: true })
   @Column({ type: 'varchar', length: 100, nullable: true })
   designation!: string | null;
 
-  @ApiPropertyOptional({ example: '1er', description: 'Étage de la chambre', nullable: true })
+  @ApiPropertyOptional({ example: '1er', nullable: true })
   @Column({ type: 'varchar', length: 20, nullable: true })
   etage!: string | null;
 
-  @ApiProperty({ description: 'Service hospitalier auquel appartient la chambre' })
+  @ApiProperty({ enum: TypeChambre, example: TypeChambre.INDIVIDUELLE })
+  @Column({ type: 'enum', enum: TypeChambre, default: TypeChambre.INDIVIDUELLE })
+  type!: TypeChambre;
+
+  @ApiProperty({ example: 1, description: 'Nombre de lits' })
+  @Column({ type: 'int', default: 1 })
+  capacite!: number;
+
+  @ApiProperty({ enum: StatutChambre, example: StatutChambre.DISPONIBLE })
+  @Column({ type: 'enum', enum: StatutChambre, default: StatutChambre.DISPONIBLE })
+  statut!: StatutChambre;
+
+  @ApiProperty()
   @ManyToOne(() => Service, { onDelete: 'RESTRICT', eager: true })
   @JoinColumn({ name: 'service_id' })
   service!: Service;
 
-  @ApiProperty({ example: true, description: 'Indique si la chambre est active' })
+  @ApiProperty({ example: true })
   @Column({ name: 'est_active', default: true })
   estActive!: boolean;
 
-  @ApiProperty({ example: '2026-04-14T10:00:00.000Z', description: 'Date de création' })
+  @ApiProperty()
   @CreateDateColumn()
   createdAt!: Date;
 
-  @ApiProperty({ example: '2026-04-14T10:00:00.000Z', description: 'Date de dernière modification' })
+  @ApiProperty()
   @UpdateDateColumn()
   updatedAt!: Date;
 }

@@ -1,10 +1,9 @@
-// src/service/chambre.controller.ts
-
 import {
   Controller,
   Get,
   Post,
   Patch,
+  Delete,
   Body,
   Param,
   UseGuards,
@@ -39,36 +38,30 @@ export class ChambreController {
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMINISTRATEUR)
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({
-    summary: 'Créer une chambre (admin)',
-    description: 'L\'administrateur crée une chambre dans un service donné.',
-  })
+  @ApiOperation({ summary: 'Créer une chambre (admin)' })
   @ApiParam({ name: 'serviceId', description: 'UUID du service' })
   @ApiBody({ type: CreateChambreDto })
-  @ApiResponse({ status: 201, description: 'Chambre créée.', type: Chambre })
+  @ApiResponse({ status: 201, type: Chambre })
   @ApiResponse({ status: 404, description: 'Service introuvable.' })
-  @ApiResponse({ status: 409, description: 'Numéro de chambre déjà utilisé dans ce service.' })
+  @ApiResponse({ status: 409, description: 'Numéro déjà utilisé dans ce service.' })
   @ApiResponse({ status: 403, description: 'Accès réservé à l\'administrateur.' })
   create(@Param('serviceId') serviceId: string, @Body() dto: CreateChambreDto): Promise<Chambre> {
     return this.chambreService.create(serviceId, dto);
   }
 
   @Get('service/:serviceId')
-  @ApiOperation({
-    summary: 'Lister les chambres d\'un service',
-    description: 'Retourne toutes les chambres d\'un service hospitalier.',
-  })
+  @ApiOperation({ summary: 'Lister les chambres d\'un service' })
   @ApiParam({ name: 'serviceId', description: 'UUID du service' })
-  @ApiResponse({ status: 200, description: 'Liste des chambres.', type: [Chambre] })
+  @ApiResponse({ status: 200, type: [Chambre] })
   @ApiResponse({ status: 404, description: 'Service introuvable.' })
   findByService(@Param('serviceId') serviceId: string): Promise<Chambre[]> {
     return this.chambreService.findByService(serviceId);
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Voir une chambre', description: 'Retourne les détails d\'une chambre.' })
+  @ApiOperation({ summary: 'Voir une chambre' })
   @ApiParam({ name: 'id', description: 'UUID de la chambre' })
-  @ApiResponse({ status: 200, description: 'Détails de la chambre.', type: Chambre })
+  @ApiResponse({ status: 200, type: Chambre })
   @ApiResponse({ status: 404, description: 'Chambre introuvable.' })
   findOne(@Param('id') id: string): Promise<Chambre> {
     return this.chambreService.findOne(id);
@@ -77,14 +70,27 @@ export class ChambreController {
   @Patch(':id')
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMINISTRATEUR)
-  @ApiOperation({ summary: 'Modifier une chambre (admin)', description: 'Met à jour les informations d\'une chambre.' })
+  @ApiOperation({ summary: 'Modifier une chambre (admin)' })
   @ApiParam({ name: 'id', description: 'UUID de la chambre' })
   @ApiBody({ type: UpdateChambreDto })
-  @ApiResponse({ status: 200, description: 'Chambre mise à jour.', type: Chambre })
+  @ApiResponse({ status: 200, type: Chambre })
   @ApiResponse({ status: 404, description: 'Chambre introuvable.' })
   @ApiResponse({ status: 409, description: 'Numéro déjà utilisé dans ce service.' })
   @ApiResponse({ status: 403, description: 'Accès réservé à l\'administrateur.' })
   update(@Param('id') id: string, @Body() dto: UpdateChambreDto): Promise<Chambre> {
     return this.chambreService.update(id, dto);
+  }
+
+  @Delete(':id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMINISTRATEUR)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Supprimer une chambre (admin)' })
+  @ApiParam({ name: 'id', description: 'UUID de la chambre' })
+  @ApiResponse({ status: 204, description: 'Chambre supprimée.' })
+  @ApiResponse({ status: 404, description: 'Chambre introuvable.' })
+  @ApiResponse({ status: 403, description: 'Accès réservé à l\'administrateur.' })
+  remove(@Param('id') id: string): Promise<void> {
+    return this.chambreService.remove(id);
   }
 }
