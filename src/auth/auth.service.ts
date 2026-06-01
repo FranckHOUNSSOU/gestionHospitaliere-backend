@@ -15,6 +15,7 @@ import * as bcrypt from 'bcrypt';
 import { User, UserRole } from './users/entities/user.entity';
 import { Pole } from '../service/pole.entity';
 import { Service } from '../service/service.entity';
+import { Medecin } from '../medecin/entities/medecin.entity';
 import { LoginDto } from './dto/login.dto';
 import { CreateUserDto } from './users/dto/create-user.dto';
 import { CreateUserByAdminDto } from './users/dto/create-user-by-admin.dto';
@@ -38,6 +39,7 @@ export interface AuthResponse {
     email: string;
     role: string;
     pole: string | null;
+    poleId: string | null;
   };
 }
 
@@ -50,6 +52,8 @@ export class AuthService {
     private readonly poleRepository: Repository<Pole>,
     @InjectRepository(Service)
     private readonly serviceRepository: Repository<Service>,
+    @InjectRepository(Medecin)
+    private readonly medecinRepository: Repository<Medecin>,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
   ) {}
@@ -134,6 +138,14 @@ export class AuthService {
       createur: { id: adminId } as User,
     });
     await this.userRepository.save(user);
+
+    if (dto.role === UserRole.MEDECIN) {
+      const profil = this.medecinRepository.create({
+        user,
+        numeroOrdre: dto.numeroOrdre ?? `AUTO-${user.id.slice(0, 8)}`,
+      });
+      await this.medecinRepository.save(profil);
+    }
 
     const statut = actif ? 'actif' : 'inactif par défaut';
     return { message: `Compte ${dto.role} créé avec succès. Il est ${statut}.` };
@@ -325,6 +337,7 @@ export class AuthService {
         email:  user.email,
         role:   user.role,
         pole:   user.pole?.nom ?? null,
+        poleId: user.pole?.id  ?? null,
       },
     };
   }
