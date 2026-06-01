@@ -77,7 +77,10 @@ export class FacturationService implements OnModuleInit {
     // 3. Séjours avec toutes les relations
     const sejours = await this.sejourRepo.find({
       where: { patient: { id: patientId } },
-      relations: ['mouvements', 'examens', 'soinsInfirmiers', 'prescriptions'],
+      relations: [
+        'mouvements', 'examens', 'soinsInfirmiers', 'prescriptions',
+        'medecinResponsable', 'medecinResponsable.user', 'medecinResponsable.user.service',
+      ],
       order: { dateAdmission: 'ASC' },
     });
 
@@ -198,10 +201,12 @@ export class FacturationService implements OnModuleInit {
         id:            s.id,
         dateAdmission: s.dateAdmission,
         dateSortie:    s.dateSortie ?? null,
-        modeEntree:    s.modeEntree,
+        modeEntree:    s.modeEntree ?? null,
         modeSortie:    s.modeSortie ?? null,
         motif:         s.motifHospitalisation,
-        service:       s.mouvements?.[0]?.serviceArrivee ?? null,
+        service:       s.mouvements?.[0]?.serviceArrivee
+                       ?? (s as any).medecinResponsable?.user?.service?.nom
+                       ?? null,
         examens:       (s as any)._lignesExamens,
         soins:         (s as any)._lignesSoins,
         totalExamens:  (s as any)._totalExamens,
