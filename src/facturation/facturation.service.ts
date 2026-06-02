@@ -60,8 +60,11 @@ export class FacturationService implements OnModuleInit {
   }
 
   async getApercuFacture(patientId: string) {
-    // 1. Patient
-    const patient = await this.patientRepo.findOne({ where: { id: patientId } });
+    // 1. Patient avec couvertures sociales
+    const patient = await this.patientRepo.findOne({
+      where: { id: patientId },
+      relations: ['couverturesSociales'],
+    });
     if (!patient) return null;
 
     // 2. Tarifs (map par code)
@@ -71,7 +74,7 @@ export class FacturationService implements OnModuleInit {
     // 3. Séjours avec toutes les relations
     const sejours = await this.sejourRepo.find({
       where: { patient: { id: patientId } },
-      relations: ['mouvements', 'examens', 'soinsInfirmiers'],
+      relations: ['mouvements', 'examens', 'soinsInfirmiers', 'medecinResponsable', 'medecinResponsable.user', 'medecinResponsable.user.service'],
       order: { dateAdmission: 'ASC' },
     });
 
@@ -188,10 +191,21 @@ export class FacturationService implements OnModuleInit {
     const sejoursData = sejours.map(s => {
       totalExamens += (s as any)._totalExamens;
       totalSoins   += (s as any)._totalSoins;
+      // Service : priorité au mouvement d'entrée, sinon service du médecin
+      const premierMvt = [...(s.mouvements ?? [])].sort(
+        (a, b) => new Date(a.dateHeureMouvement).getTime() - new Date(b.dateHeureMouvement).getTime(),
+      )[0];
+      const serviceNom = premierMvt?.serviceArrivee
+        ?? (s.medecinResponsable as any)?.user?.service?.nom
+        ?? null;
       return {
         id:            s.id,
+        numeroSejour:  s.numeroSejour,
         dateAdmission: s.dateAdmission,
         dateSortie:    s.dateSortie ?? null,
+        modeEntree:    s.modeEntree,
+        modeSortie:    s.modeSortie ?? null,
+        service:       serviceNom,
         motif:         s.motifHospitalisation,
         examens:       (s as any)._lignesExamens,
         soins:         (s as any)._lignesSoins,
@@ -227,6 +241,10 @@ export class FacturationService implements OnModuleInit {
     const totalConsultations = lignesConsultations.reduce((s, r) => s + (r as any).tarif, 0);
     const totalGeneral       = totalHospitalisation + totalExamens + totalSoins + totalConsultations;
 
+    // Couverture sociale active (la première active trouvée)
+    const couvertureActive = (patient as any).couverturesSociales
+      ?.find((c: any) => c.estActive) ?? (patient as any).couverturesSociales?.[0] ?? null;
+
     return {
       patient: {
         id:            patient.id,
@@ -234,6 +252,13 @@ export class FacturationService implements OnModuleInit {
         prenom:        patient.prenom,
         numeroIpp:     patient.numeroIpp,
         dateNaissance: patient.dateNaissance,
+        sexe:          (patient as any).sexe ?? null,
+        telephone:     (patient as any).telephoneMobile ?? (patient as any).telephone ?? null,
+        couvertureSociale: couvertureActive ? {
+          organisme: couvertureActive.nomOrganisme,
+          type:      couvertureActive.typeCouverture,
+          numero:    couvertureActive.numeroAssure,
+        } : null,
       },
       lignesHospitalisation,
       sejours: sejoursData,
