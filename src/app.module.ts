@@ -106,6 +106,8 @@ import { VoletNutritionnel } from './patient/entities/volet-nutritionnel.entity'
           // Facturation
           Tarif,
         ],
+        // synchronize: true uniquement en développement
+        // En production : utiliser les migrations TypeORM
         synchronize: config.get<string>('NODE_ENV') === 'development' || config.get<string>('DB_SYNC') === 'true',
         logging: config.get<string>('NODE_ENV') === 'development',
       }),

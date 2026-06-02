@@ -111,7 +111,7 @@ export class MedecinService {
   async findByUserId(userId: string): Promise<Medecin> {
     const medecin = await this.medecinRepository.findOne({
       where: { user: { id: userId } },
-      relations: ['user', 'specialites', 'diplomes', 'accreditations', 'affectations', 'affectations.service'],
+      relations: ['specialites', 'diplomes', 'accreditations', 'affectations'],
     });
     if (!medecin) throw new NotFoundException('Profil médecin introuvable pour cet utilisateur.');
     return medecin;

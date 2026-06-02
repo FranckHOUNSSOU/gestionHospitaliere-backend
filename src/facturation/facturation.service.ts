@@ -60,15 +60,9 @@ export class FacturationService implements OnModuleInit {
   }
 
   async getApercuFacture(patientId: string) {
-    // 1. Patient avec couvertures sociales
-    const patient = await this.patientRepo.findOne({
-      where: { id: patientId },
-      relations: ['couverturesSociales'],
-    });
+    // 1. Patient
+    const patient = await this.patientRepo.findOne({ where: { id: patientId } });
     if (!patient) return null;
-
-    const couvertureActive = (patient as any).couverturesSociales?.find((c: any) => c.estActive)
-      ?? (patient as any).couverturesSociales?.[0] ?? null;
 
     // 2. Tarifs (map par code)
     const tarifs = await this.tarifRepo.find({ where: { estActif: true } });
@@ -77,10 +71,7 @@ export class FacturationService implements OnModuleInit {
     // 3. Séjours avec toutes les relations
     const sejours = await this.sejourRepo.find({
       where: { patient: { id: patientId } },
-      relations: [
-        'mouvements', 'examens', 'soinsInfirmiers', 'prescriptions',
-        'medecinResponsable', 'medecinResponsable.user', 'medecinResponsable.user.service',
-      ],
+      relations: ['mouvements', 'examens', 'soinsInfirmiers'],
       order: { dateAdmission: 'ASC' },
     });
 
@@ -201,12 +192,7 @@ export class FacturationService implements OnModuleInit {
         id:            s.id,
         dateAdmission: s.dateAdmission,
         dateSortie:    s.dateSortie ?? null,
-        modeEntree:    s.modeEntree ?? null,
-        modeSortie:    s.modeSortie ?? null,
         motif:         s.motifHospitalisation,
-        service:       s.mouvements?.[0]?.serviceArrivee
-                       ?? (s as any).medecinResponsable?.user?.service?.nom
-                       ?? null,
         examens:       (s as any)._lignesExamens,
         soins:         (s as any)._lignesSoins,
         totalExamens:  (s as any)._totalExamens,
@@ -243,19 +229,11 @@ export class FacturationService implements OnModuleInit {
 
     return {
       patient: {
-        id:              patient.id,
-        nom:             patient.nom,
-        prenom:          patient.prenom,
-        numeroIpp:       patient.numeroIpp,
-        dateNaissance:   patient.dateNaissance,
-        sexe:            patient.sexe,
-        telephone:       patient.telephoneMobile ?? patient.telephoneFixe ?? null,
-        couvertureSociale: couvertureActive ? {
-          organisme:  couvertureActive.nomOrganisme,
-          type:       couvertureActive.typeCouverture,
-          numero:     couvertureActive.numeroAssure,
-          taux:       couvertureActive.tauxPriseEnCharge,
-        } : null,
+        id:            patient.id,
+        nom:           patient.nom,
+        prenom:        patient.prenom,
+        numeroIpp:     patient.numeroIpp,
+        dateNaissance: patient.dateNaissance,
       },
       lignesHospitalisation,
       sejours: sejoursData,
