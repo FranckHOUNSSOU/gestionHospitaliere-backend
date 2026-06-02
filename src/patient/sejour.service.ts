@@ -1,4 +1,4 @@
-// src/patient/sejour.service.ts
+﻿// src/patient/sejour.service.ts
 
 import {
   Injectable,
@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull, Not, In } from 'typeorm';
-import { Sejour } from './entities/sejour.entity';
+import { Sejour, TypeSejour } from './entities/sejour.entity';
 import { Mouvement } from './entities/mouvement.entity';
 import { Diagnostic, StatutDiagnostic } from './entities/diagnostic.entity';
 import { Prescription } from './entities/prescription.entity';
@@ -126,6 +126,7 @@ export class SejourService {
       medecinResponsable: medecin,
       numeroSejour: dto.numeroSejour,
       dateAdmission: new Date(dto.dateAdmission),
+      typeSejour: dto.typeSejour ?? TypeSejour.HOSPITALISATION,
       modeEntree: dto.modeEntree,
       motifHospitalisation: dto.motifHospitalisation,
     });

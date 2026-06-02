@@ -1,4 +1,4 @@
-// src/patient/dto/create-sejour.dto.ts
+﻿// src/patient/dto/create-sejour.dto.ts
 
 import {
   IsString,
@@ -8,7 +8,7 @@ import {
   MaxLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ModeEntree } from '../entities/sejour.entity';
+import { ModeEntree, TypeSejour } from '../entities/sejour.entity';
 
 export class CreateSejourDto {
   @ApiPropertyOptional({ example: 'uuid-medecin', description: 'UUID du médecin responsable' })
@@ -26,6 +26,11 @@ export class CreateSejourDto {
   @IsString()
   @IsNotEmpty()
   dateAdmission!: string;
+
+  @ApiPropertyOptional({ enum: TypeSejour, description: 'Type de séjour', default: TypeSejour.HOSPITALISATION })
+  @IsOptional()
+  @IsEnum(TypeSejour)
+  typeSejour?: TypeSejour;
 
   @ApiProperty({ enum: ModeEntree, description: "Mode d'entrée" })
   @IsEnum(ModeEntree)
