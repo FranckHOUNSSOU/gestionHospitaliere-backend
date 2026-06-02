@@ -1,4 +1,4 @@
-// src/patient/entities/sejour.entity.ts
+﻿// src/patient/entities/sejour.entity.ts
 
 import {
   Entity,
@@ -26,6 +26,12 @@ import { Consentement } from './consentement.entity';
 import { VoletAnesthesie } from './volet-anesthesie.entity';
 import { VoletSocial } from './volet-social.entity';
 import { VoletNutritionnel } from './volet-nutritionnel.entity';
+
+export enum TypeSejour {
+  CONSULTATION    = 'Consultation',
+  HOSPITALISATION = 'Hospitalisation',
+  URGENCES        = 'Urgences',
+}
 
 export enum ModeEntree {
   URGENCES  = 'Urgences',
@@ -76,6 +82,10 @@ export class Sejour {
   @ApiPropertyOptional({ example: '2024-01-20T14:30:00.000Z', description: 'Date et heure de sortie', nullable: true })
   @Column({ name: 'date_sortie', type: 'timestamp', nullable: true })
   dateSortie!: Date | null;
+
+  @ApiProperty({ enum: TypeSejour, description: 'Type de séjour' })
+  @Column({ name: 'type_sejour', type: 'enum', enum: TypeSejour, default: TypeSejour.HOSPITALISATION })
+  typeSejour!: TypeSejour;
 
   @ApiProperty({ enum: ModeEntree, description: "Mode d'entrée" })
   @Column({ name: 'mode_entree', type: 'enum', enum: ModeEntree })
