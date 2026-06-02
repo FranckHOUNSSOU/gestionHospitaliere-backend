@@ -1,7 +1,8 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+﻿import { Injectable, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Tarif, CategorieTarif } from './tarif.entity';
+import { Facture, StatutFacture } from './facture.entity';
 import { Patient } from '../patient/entities/patient.entity';
 import { Sejour } from '../patient/entities/sejour.entity';
 import { Chambre, TypeChambre } from '../service/chambre.entity';
@@ -36,11 +37,12 @@ const TARIFS_SEED = [
 @Injectable()
 export class FacturationService implements OnModuleInit {
   constructor(
-    @InjectRepository(Tarif)    private readonly tarifRepo:   Repository<Tarif>,
-    @InjectRepository(Patient)  private readonly patientRepo: Repository<Patient>,
-    @InjectRepository(Sejour)   private readonly sejourRepo:  Repository<Sejour>,
-    @InjectRepository(Chambre)  private readonly chambreRepo: Repository<Chambre>,
-    @InjectRepository(RendezVous) private readonly rdvRepo:   Repository<RendezVous>,
+    @InjectRepository(Tarif)      private readonly tarifRepo:    Repository<Tarif>,
+    @InjectRepository(Facture)    private readonly factureRepo:  Repository<Facture>,
+    @InjectRepository(Patient)    private readonly patientRepo:  Repository<Patient>,
+    @InjectRepository(Sejour)     private readonly sejourRepo:   Repository<Sejour>,
+    @InjectRepository(Chambre)    private readonly chambreRepo:  Repository<Chambre>,
+    @InjectRepository(RendezVous) private readonly rdvRepo:      Repository<RendezVous>,
   ) {}
 
   // Seed des tarifs au démarrage si la table est vide
@@ -55,6 +57,32 @@ export class FacturationService implements OnModuleInit {
     }
   }
 
+
+  private async genNumeroFacture(): Promise<string> {
+    const year  = new Date().getFullYear();
+    const count = await this.factureRepo.count();
+    return `FAC-${year}-${String(count + 1).padStart(5, '0')}`;
+  }
+
+  async emettreFacture(patientId: string): Promise<Facture> {
+    const apercu = await this.getApercuFacture(patientId);
+    if (!apercu) throw new Error('Patient introuvable');
+    const numero  = await this.genNumeroFacture();
+    const facture = this.factureRepo.create({
+      numeroFacture: numero,
+      patientId,
+      patientNom:    apercu.patient.nom,
+      patientPrenom: apercu.patient.prenom,
+      montantTotal:  apercu.totalGeneral,
+      statut:        StatutFacture.EMISE,
+      snapshot:      apercu,
+    });
+    return this.factureRepo.save(facture);
+  }
+
+  async listeFactures(): Promise<Facture[]> {
+    return this.factureRepo.find({ order: { createdAt: 'DESC' } });
+  }
   async getTarifs(): Promise<Tarif[]> {
     return this.tarifRepo.find({ where: { estActif: true }, order: { categorie: 'ASC', libelle: 'ASC' } });
   }
