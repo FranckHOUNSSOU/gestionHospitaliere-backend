@@ -34,6 +34,8 @@ import { CreateAccreditationDto } from './dto/create-accreditation.dto';
 import { CreateAffectationDto } from './dto/create-affectation.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { MessageResponse } from '../auth/dto/auth.responses';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { User } from '../auth/users/entities/user.entity';
 
 @ApiTags('Médecins')
 @ApiBearerAuth('access-token')
@@ -67,6 +69,17 @@ export class MedecinController {
   @ApiResponse({ status: 200, description: 'Liste des médecins.', type: [Medecin] })
   findAll(): Promise<Medecin[]> {
     return this.medecinService.findAll();
+  }
+
+  @Get('moi')
+  @ApiOperation({
+    summary: 'Mon profil médecin',
+    description: 'Retourne le profil complet du médecin actuellement connecté, avec spécialités, diplômes, accréditations et affectations.',
+  })
+  @ApiResponse({ status: 200, description: 'Profil médecin du connecté.', type: Medecin })
+  @ApiResponse({ status: 404, description: 'Profil médecin introuvable pour cet utilisateur.' })
+  monProfil(@CurrentUser() user: User): Promise<Medecin> {
+    return this.medecinService.findByUserId(user.id);
   }
 
   @Get(':id')
