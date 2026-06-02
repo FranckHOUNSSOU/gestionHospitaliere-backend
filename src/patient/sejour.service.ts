@@ -24,6 +24,7 @@ import { Medecin } from '../medecin/entities/medecin.entity';
 import { Patient } from './entities/patient.entity';
 import { User, UserRole } from '../auth/users/entities/user.entity';
 import { CreateSejourDto } from './dto/create-sejour.dto';
+import { UpdateSejourDto } from './dto/update-sejour.dto';
 import { CloturerSejourDto } from './dto/cloturer-sejour.dto';
 import { CreateMouvementDto } from './dto/create-mouvement.dto';
 import { CreateDiagnosticDto } from './dto/create-diagnostic.dto';
@@ -133,6 +134,24 @@ export class SejourService {
     return this.sejourRepo.save(sejour);
   }
 
+  async updateSejour(sejourId: string, dto: UpdateSejourDto): Promise<Sejour> {
+    const sejour = await this.findSejour(sejourId);
+    if (dto.medecinResponsableId !== undefined) {
+      sejour.medecinResponsable = await this.findMedecinIfProvided(dto.medecinResponsableId);
+    }
+    if (dto.dateAdmission)        sejour.dateAdmission        = new Date(dto.dateAdmission);
+    if (dto.modeEntree)           sejour.modeEntree            = dto.modeEntree;
+    if (dto.motifHospitalisation) sejour.motifHospitalisation  = dto.motifHospitalisation;
+    return this.sejourRepo.save(sejour);
+  }
+
+  async deleteSejour(sejourId: string): Promise<void> {
+    const sejour = await this.findSejour(sejourId);
+    if (sejour.dateSortie) {
+      throw new ConflictException('Impossible de supprimer un séjour déjà clôturé.');
+    }
+    await this.sejourRepo.remove(sejour);
+  }
   async cloturerSejour(sejourId: string, dto: CloturerSejourDto): Promise<Sejour> {
     const sejour = await this.findSejour(sejourId);
     if (sejour.dateSortie) {
@@ -221,6 +240,7 @@ export class SejourService {
       dateAdmission:       s.dateAdmission,
       dateSortie:          s.dateSortie ?? undefined,
       motifHospitalisation:s.motifHospitalisation,
+      typeSejour:          (s as any).typeSejour ?? 'Hospitalisation',
       statut:              s.dateSortie ? 'cloture' : 'actif',
       patient: {
         id:            s.patient.id,
