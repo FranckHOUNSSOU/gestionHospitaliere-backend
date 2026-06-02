@@ -6,10 +6,10 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull } from 'typeorm';
+import { Repository, IsNull, Not, In } from 'typeorm';
 import { Sejour } from './entities/sejour.entity';
 import { Mouvement } from './entities/mouvement.entity';
-import { Diagnostic } from './entities/diagnostic.entity';
+import { Diagnostic, StatutDiagnostic } from './entities/diagnostic.entity';
 import { Prescription } from './entities/prescription.entity';
 import { Examen } from './entities/examen.entity';
 import { ResultatExamen } from './entities/resultat-examen.entity';
@@ -22,6 +22,7 @@ import { VoletSocial } from './entities/volet-social.entity';
 import { VoletNutritionnel } from './entities/volet-nutritionnel.entity';
 import { Medecin } from '../medecin/entities/medecin.entity';
 import { Patient } from './entities/patient.entity';
+import { User, UserRole } from '../auth/users/entities/user.entity';
 import { CreateSejourDto } from './dto/create-sejour.dto';
 import { CloturerSejourDto } from './dto/cloturer-sejour.dto';
 import { CreateMouvementDto } from './dto/create-mouvement.dto';
@@ -71,6 +72,8 @@ export class SejourService {
     private readonly patientRepo: Repository<Patient>,
     @InjectRepository(Medecin)
     private readonly medecinRepo: Repository<Medecin>,
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
   ) {}
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -89,9 +92,24 @@ export class SejourService {
 
   private async findMedecinIfProvided(medecinId?: string): Promise<Medecin | null> {
     if (!medecinId) return null;
-    const medecin = await this.medecinRepo.findOne({ where: { id: medecinId } });
-    if (!medecin) throw new NotFoundException(`Médecin introuvable (id: ${medecinId}).`);
-    return medecin;
+
+    // 1. Cherche par medecin.id
+    let medecin = await this.medecinRepo.findOne({ where: { id: medecinId } });
+    if (medecin) return medecin;
+
+    // 2. Cherche par medecin.user.id (userId envoyé depuis le frontend)
+    medecin = await this.medecinRepo.findOne({ where: { user: { id: medecinId } } });
+    if (medecin) return medecin;
+
+    // 3. Si aucun profil Medecin n'existe, le créer à la volée depuis le User
+    const user = await this.userRepo.findOne({ where: { id: medecinId, role: UserRole.MEDECIN } });
+    if (!user) throw new NotFoundException(`Médecin introuvable (id: ${medecinId}).`);
+
+    const nouveau = this.medecinRepo.create({
+      user,
+      numeroOrdre: user.numeroOrdre ?? `AUTO-${user.id.slice(0, 8)}`,
+    });
+    return this.medecinRepo.save(nouveau);
   }
 
   // ── SÉJOURS ───────────────────────────────────────────────────────────────
@@ -128,6 +146,7 @@ export class SejourService {
     await this.findPatient(patientId);
     return this.sejourRepo.find({
       where: { patient: { id: patientId } },
+      relations: ['medecinResponsable', 'medecinResponsable.user', 'mouvements', 'diagnostics'],
       order: { dateAdmission: 'DESC' },
     });
   }
@@ -136,6 +155,7 @@ export class SejourService {
     await this.findPatient(patientId);
     return this.sejourRepo.findOne({
       where: { patient: { id: patientId }, dateSortie: IsNull() },
+      relations: ['diagnostics', 'mouvements', 'medecinResponsable', 'medecinResponsable.user'],
     });
   }
 
@@ -153,6 +173,7 @@ export class SejourService {
       relations: [
         'patient',
         'medecinResponsable',
+        'medecinResponsable.user',
         'mouvements',
         'diagnostics',
         'diagnostics.medecin',
@@ -175,6 +196,103 @@ export class SejourService {
     });
     if (!sejour) throw new NotFoundException(`Séjour introuvable (id: ${sejourId}).`);
     return sejour;
+  }
+
+  // ── SÉJOURS DU MÉDECIN CONNECTÉ ───────────────────────────────────────────
+
+  async getMesSejours(userId: string, statut?: string): Promise<any[]> {
+    const medecin = await this.medecinRepo.findOne({ where: { user: { id: userId } } });
+    if (!medecin) return [];
+
+    const where: any = { medecinResponsable: { id: medecin.id } };
+    if (statut === 'actif')   where.dateSortie = IsNull();
+    if (statut === 'cloture') where.dateSortie = Not(IsNull());
+
+    const sejours = await this.sejourRepo.find({
+      where,
+      relations: ['patient'],
+      order: { dateAdmission: 'DESC' },
+    });
+
+    return sejours.map(s => ({
+      id:                  s.id,
+      numeroSejour:        s.numeroSejour,
+      dateAdmission:       s.dateAdmission,
+      dateSortie:          s.dateSortie ?? undefined,
+      motifHospitalisation:s.motifHospitalisation,
+      statut:              s.dateSortie ? 'cloture' : 'actif',
+      patient: {
+        id:            s.patient.id,
+        nom:           s.patient.nom,
+        prenom:        s.patient.prenom,
+        numeroIpp:     s.patient.numeroIpp,
+        dateNaissance: s.patient.dateNaissance,
+        sexe:          s.patient.sexe,
+      },
+    }));
+  }
+
+  // ── PATIENTS DU SERVICE ──────────────────────────────────────────────────
+
+  async getPatientsMonService(userId: string, q?: string): Promise<Patient[]> {
+    const user = await this.userRepo.findOne({
+      where: { id: userId },
+      relations: ['service'],
+    });
+    if (!user?.service?.id) return [];
+
+    // Trouve tous les médecins du même service
+    const medecins = await this.medecinRepo.find({
+      where: { user: { service: { id: user.service.id } } },
+      select: { id: true },
+    });
+    if (!medecins.length) return [];
+
+    const medecinIds = medecins.map(m => m.id);
+
+    // Récupère les IDs patients uniques via leurs séjours
+    const sejours = await this.sejourRepo.find({
+      where: { medecinResponsable: { id: In(medecinIds) } },
+      relations: ['patient'],
+      select: { id: true, patient: { id: true } },
+    });
+    const patientIds = [...new Set(
+      sejours.map(s => s.patient?.id).filter(Boolean) as string[],
+    )];
+    if (!patientIds.length) return [];
+
+    const qb = this.patientRepo
+      .createQueryBuilder('patient')
+      .leftJoinAndSelect('patient.allergies',          'allergies')
+      .leftJoinAndSelect('patient.traitementsARisque', 'traitementsARisque')
+      .leftJoinAndSelect('patient.contactsUrgence',   'contactsUrgence')
+      .leftJoinAndSelect('patient.couverturesSociales','couverturesSociales')
+      .where('patient.id IN (:...ids)', { ids: patientIds });
+
+    if (q?.trim()) {
+      qb.andWhere(
+        '(LOWER(patient.nom) LIKE LOWER(:q) OR LOWER(patient.prenom) LIKE LOWER(:q) OR LOWER(patient.numero_ipp) LIKE LOWER(:q))',
+        { q: `%${q.trim()}%` },
+      );
+    }
+
+    return qb.orderBy('patient.nom', 'ASC').addOrderBy('patient.prenom', 'ASC').getMany();
+  }
+
+  // ── MISE À JOUR D'UN DIAGNOSTIC ───────────────────────────────────────────
+
+  async updateDiagnostic(
+    sejourId: string,
+    diagId: string,
+    dto: { statut?: StatutDiagnostic; valide?: boolean },
+  ): Promise<Diagnostic> {
+    const diagnostic = await this.diagnosticRepo.findOne({
+      where: { id: diagId, sejour: { id: sejourId } },
+    });
+    if (!diagnostic) throw new NotFoundException(`Diagnostic introuvable (id: ${diagId}).`);
+    if (dto.statut  !== undefined) diagnostic.statut = dto.statut;
+    if (dto.valide  !== undefined) diagnostic.valide = dto.valide;
+    return this.diagnosticRepo.save(diagnostic);
   }
 
   // ── MOUVEMENTS ────────────────────────────────────────────────────────────

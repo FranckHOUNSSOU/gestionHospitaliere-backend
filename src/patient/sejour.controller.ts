@@ -8,6 +8,7 @@ import {
   Put,
   Body,
   Param,
+  Query,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -23,6 +24,7 @@ import {
 import { SejourService } from './sejour.service';
 import { Sejour } from './entities/sejour.entity';
 import { Mouvement } from './entities/mouvement.entity';
+import { Patient } from './entities/patient.entity';
 import { Diagnostic } from './entities/diagnostic.entity';
 import { Prescription } from './entities/prescription.entity';
 import { Examen } from './entities/examen.entity';
@@ -50,6 +52,9 @@ import { UpsertVoletAnesthesieDto } from './dto/upsert-volet-anesthesie.dto';
 import { UpsertVoletSocialDto } from './dto/upsert-volet-social.dto';
 import { UpsertVoletNutritionnelDto } from './dto/upsert-volet-nutritionnel.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { User } from '../auth/users/entities/user.entity';
+import { StatutDiagnostic } from './entities/diagnostic.entity';
 
 @ApiTags('Séjours')
 @ApiBearerAuth('access-token')
@@ -99,6 +104,33 @@ export class SejourController {
     return this.sejourService.getHistoriquePatient(patientId);
   }
 
+  @Get('patients-du-service')
+  @ApiOperation({ summary: 'Patients du service', description: 'Retourne les patients pris en charge par les médecins du même service que le médecin connecté.' })
+  @ApiResponse({ status: 200, description: 'Liste des patients du service.', type: [Patient] })
+  getPatientsMonService(
+    @CurrentUser() user: User,
+    @Query('q') q?: string,
+  ): Promise<Patient[]> {
+    return this.sejourService.getPatientsMonService(user.id, q);
+  }
+
+  @Get()
+  @ApiOperation({ summary: 'Mes séjours', description: 'Retourne les séjours du médecin connecté.' })
+  @ApiResponse({ status: 200, description: 'Liste des séjours du médecin.' })
+  getMesSejours(
+    @CurrentUser() user: User,
+    @Query('statut') statut?: string,
+  ): Promise<any[]> {
+    return this.sejourService.getMesSejours(user.id, statut);
+  }
+
+  @Get('recents')
+  @ApiOperation({ summary: 'Séjours récents', description: 'Retourne les 10 séjours les plus récents du médecin connecté.' })
+  @ApiResponse({ status: 200, description: 'Séjours récents.' })
+  getSejoursRecents(@CurrentUser() user: User): Promise<any[]> {
+    return this.sejourService.getMesSejours(user.id);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Séjour complet', description: 'Retourne un séjour avec toutes ses relations.' })
   @ApiParam({ name: 'id', description: 'UUID du séjour' })
@@ -143,6 +175,20 @@ export class SejourController {
   @ApiResponse({ status: 404, description: 'Séjour ou médecin introuvable.' })
   addDiagnostic(@Param('id') id: string, @Body() dto: CreateDiagnosticDto): Promise<Diagnostic> {
     return this.sejourService.addDiagnostic(id, dto);
+  }
+
+  @Patch(':id/diagnostics/:diagId')
+  @ApiOperation({ summary: 'Valider/modifier un diagnostic', description: 'Met à jour le statut ou la validation d\'un diagnostic.' })
+  @ApiParam({ name: 'id', description: 'UUID du séjour' })
+  @ApiParam({ name: 'diagId', description: 'UUID du diagnostic' })
+  @ApiResponse({ status: 200, description: 'Diagnostic mis à jour.', type: Diagnostic })
+  @ApiResponse({ status: 404, description: 'Diagnostic introuvable.' })
+  updateDiagnostic(
+    @Param('id') id: string,
+    @Param('diagId') diagId: string,
+    @Body() dto: { statut?: StatutDiagnostic; valide?: boolean },
+  ): Promise<Diagnostic> {
+    return this.sejourService.updateDiagnostic(id, diagId, dto);
   }
 
   // ── PRESCRIPTIONS ─────────────────────────────────────────────────────────

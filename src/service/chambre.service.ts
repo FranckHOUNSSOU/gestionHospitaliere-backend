@@ -1,5 +1,3 @@
-// src/service/chambre.service.ts
-
 import {
   Injectable,
   NotFoundException,
@@ -20,7 +18,6 @@ export class ChambreService {
     private readonly serviceService: ServiceService,
   ) {}
 
-  // ── CRÉER UNE CHAMBRE ─────────────────────────────────────────────────────
   async create(serviceId: string, dto: CreateChambreDto): Promise<Chambre> {
     const service = await this.serviceService.findOne(serviceId);
 
@@ -42,7 +39,6 @@ export class ChambreService {
     return this.chambreRepository.save(chambre);
   }
 
-  // ── LISTER LES CHAMBRES D'UN SERVICE ─────────────────────────────────────
   async findByService(serviceId: string): Promise<Chambre[]> {
     await this.serviceService.findOne(serviceId);
     return this.chambreRepository.find({
@@ -51,14 +47,12 @@ export class ChambreService {
     });
   }
 
-  // ── TROUVER UNE CHAMBRE PAR ID ────────────────────────────────────────────
   async findOne(id: string): Promise<Chambre> {
     const chambre = await this.chambreRepository.findOne({ where: { id } });
     if (!chambre) throw new NotFoundException('Chambre introuvable.');
     return chambre;
   }
 
-  // ── METTRE À JOUR UNE CHAMBRE ─────────────────────────────────────────────
   async update(id: string, dto: UpdateChambreDto): Promise<Chambre> {
     const chambre = await this.findOne(id);
 
@@ -75,5 +69,11 @@ export class ChambreService {
 
     Object.assign(chambre, dto);
     return this.chambreRepository.save(chambre);
+  }
+
+  // ── SUPPRIMER UNE CHAMBRE ─────────────────────────────────────────────────
+  async remove(id: string): Promise<void> {
+    const chambre = await this.findOne(id);
+    await this.chambreRepository.remove(chambre);
   }
 }

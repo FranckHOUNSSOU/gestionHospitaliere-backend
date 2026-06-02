@@ -7,6 +7,12 @@ import { AuthModule } from './auth/auth.module';
 import { ServiceModule } from './service/service.module';
 import { MedecinModule } from './medecin/medecin.module';
 import { PatientModule } from './patient/patient.module';
+import { RendezVousModule } from './rendezvous/rendezvous.module';
+import { RendezVous } from './rendezvous/entities/rendezvous.entity';
+import { NotificationModule } from './notification/notification.module';
+import { Notification } from './notification/notification.entity';
+import { FacturationModule } from './facturation/facturation.module';
+import { Tarif } from './facturation/tarif.entity';
 
 // ── Entités ───────────────────────────────────────────────────────────────────
 import { User } from './auth/users/entities/user.entity';
@@ -93,6 +99,12 @@ import { VoletNutritionnel } from './patient/entities/volet-nutritionnel.entity'
           VoletAnesthesie,
           VoletSocial,
           VoletNutritionnel,
+          // Rendez-vous
+          RendezVous,
+          // Notifications
+          Notification,
+          // Facturation
+          Tarif,
         ],
         // synchronize: true uniquement en développement
         // En production : utiliser les migrations TypeORM
@@ -106,6 +118,9 @@ import { VoletNutritionnel } from './patient/entities/volet-nutritionnel.entity'
     ServiceModule,
     MedecinModule,
     PatientModule,
+    RendezVousModule,
+    NotificationModule,
+    FacturationModule,
   ],
 })
 export class AppModule {}
