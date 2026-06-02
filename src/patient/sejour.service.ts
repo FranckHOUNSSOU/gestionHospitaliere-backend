@@ -146,7 +146,15 @@ export class SejourService {
   }
 
   async deleteSejour(sejourId: string): Promise<void> {
-    const sejour = await this.findSejour(sejourId);
+    const sejour = await this.sejourRepo.findOne({
+      where: { id: sejourId },
+      relations: [
+        'mouvements', 'diagnostics', 'prescriptions', 'examens',
+        'constantes', 'soinsInfirmiers', 'comptesRendus', 'consentements',
+        'voletAnesthesie', 'voletSocial', 'voletNutritionnel',
+      ],
+    });
+    if (!sejour) throw new NotFoundException(`Séjour introuvable (id: ${sejourId}).`);
     if (sejour.dateSortie) {
       throw new ConflictException('Impossible de supprimer un séjour déjà clôturé.');
     }
