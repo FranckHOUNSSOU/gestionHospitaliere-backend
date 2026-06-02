@@ -221,6 +221,7 @@ export class SejourService {
       dateAdmission:       s.dateAdmission,
       dateSortie:          s.dateSortie ?? undefined,
       motifHospitalisation:s.motifHospitalisation,
+      typeSejour:          (s as any).typeSejour ?? 'Hospitalisation',
       statut:              s.dateSortie ? 'cloture' : 'actif',
       patient: {
         id:            s.patient.id,
