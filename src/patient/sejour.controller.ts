@@ -1,10 +1,11 @@
-// src/patient/sejour.controller.ts
+﻿// src/patient/sejour.controller.ts
 
 import {
   Controller,
   Get,
   Post,
   Patch,
+  Delete,
   Put,
   Body,
   Param,
@@ -37,6 +38,7 @@ import { VoletAnesthesie } from './entities/volet-anesthesie.entity';
 import { VoletSocial } from './entities/volet-social.entity';
 import { VoletNutritionnel } from './entities/volet-nutritionnel.entity';
 import { CreateSejourDto } from './dto/create-sejour.dto';
+import { UpdateSejourDto } from './dto/update-sejour.dto';
 import { CloturerSejourDto } from './dto/cloturer-sejour.dto';
 import { CreateMouvementDto } from './dto/create-mouvement.dto';
 import { CreateDiagnosticDto } from './dto/create-diagnostic.dto';
@@ -140,6 +142,20 @@ export class SejourController {
     return this.sejourService.getSejourComplet(id);
   }
 
+  @Patch(':id')
+  @ApiOperation({ summary: "Modifier un séjour" })
+  @ApiParam({ name: 'id', description: 'UUID du séjour' })
+  updateSejour(@Param('id') id: string, @Body() dto: UpdateSejourDto): Promise<Sejour> {
+    return this.sejourService.updateSejour(id, dto);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: "Supprimer un séjour non clôturé" })
+  @ApiParam({ name: 'id', description: 'UUID du séjour' })
+  deleteSejour(@Param('id') id: string): Promise<void> {
+    return this.sejourService.deleteSejour(id);
+  }
   @Patch(':id/cloturer')
   @ApiOperation({ summary: 'Clôturer un séjour', description: 'Enregistre la date de sortie et le mode de sortie du séjour.' })
   @ApiParam({ name: 'id', description: 'UUID du séjour' })
