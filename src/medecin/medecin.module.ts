@@ -12,6 +12,7 @@ import { MedecinController } from './medecin.controller';
 import { AuthModule } from '../auth/auth.module';
 import { ServiceModule } from '../service/service.module';
 import { User } from '../auth/users/entities/user.entity';
+import { SupabaseStorageService } from '../storage/supabase-storage.service';
 
 @Module({
   imports: [
@@ -27,7 +28,7 @@ import { User } from '../auth/users/entities/user.entity';
     ServiceModule,   // accès à ServiceRepository (vérif service actif) + TypeOrmModule.forFeature([Service])
   ],
   controllers: [MedecinController],
-  providers: [MedecinService],
+  providers: [MedecinService, SupabaseStorageService],
   exports: [MedecinService, TypeOrmModule],
 })
 export class MedecinModule {}
