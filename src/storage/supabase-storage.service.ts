@@ -6,7 +6,7 @@ import { extname } from 'path';
 @Injectable()
 export class SupabaseStorageService {
   private supabase: SupabaseClient;
-  private readonly bucket = 'documents-medicaux';
+  private readonly bucket = 'document-diplome-medecin';
 
   constructor() {
     this.supabase = createClient(
