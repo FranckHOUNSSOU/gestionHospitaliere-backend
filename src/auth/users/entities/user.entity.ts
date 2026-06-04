@@ -82,6 +82,14 @@ export class User {
   @Column({ type: 'text', nullable: true, select: false })
   refreshToken!: string | null;
 
+  @ApiProperty({ example: 0, description: 'Nombre de tentatives de connexion échouées consécutives' })
+  @Column({ default: 0 })
+  tentativesConnexion!: number;
+
+  @ApiProperty({ example: false, description: 'Compte bloqué après 5 tentatives échouées' })
+  @Column({ default: false })
+  compteBloque!: boolean;
+
   @ApiPropertyOptional({ example: '2026-04-16T08:45:00.000Z', nullable: true })
   @Column({ type: 'timestamp', nullable: true })
   derniereConnexion!: Date | null;
