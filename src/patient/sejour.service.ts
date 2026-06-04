@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull, Not, In } from 'typeorm';
@@ -41,7 +42,7 @@ import { UpsertVoletSocialDto } from './dto/upsert-volet-social.dto';
 import { UpsertVoletNutritionnelDto } from './dto/upsert-volet-nutritionnel.dto';
 
 @Injectable()
-export class SejourService {
+export class SejourService implements OnModuleInit {
   constructor(
     @InjectRepository(Sejour)
     private readonly sejourRepo: Repository<Sejour>,
@@ -76,6 +77,21 @@ export class SejourService {
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
   ) {}
+  async onModuleInit() {
+    try {
+      // Ajoute la colonne type_sejour si elle n'existe pas (migration douce)
+      await this.sejourRepo.query(`
+        DO $$ BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'sejours' AND column_name = 'type_sejour'
+          ) THEN
+            ALTER TABLE sejours ADD COLUMN type_sejour VARCHAR(20) DEFAULT 'Hospitalisation';
+          END IF;
+        END $$;
+      `);
+    } catch { /* ignore si DB non-postgres ou déjà migrée */ }
+  }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
