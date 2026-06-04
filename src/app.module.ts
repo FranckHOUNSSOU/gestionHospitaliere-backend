@@ -13,8 +13,10 @@ import { NotificationModule } from './notification/notification.module';
 import { Notification } from './notification/notification.entity';
 import { FacturationModule } from './facturation/facturation.module';
 import { Tarif } from './facturation/tarif.entity';
+import { Facture } from './facturation/facture.entity';
 import { ActivityLogModule } from './activity-log/activity-log.module';
 import { ActivityLog } from './activity-log/activity-log.entity';
+
 
 // ── Entités ───────────────────────────────────────────────────────────────────
 import { User } from './auth/users/entities/user.entity';
@@ -107,12 +109,13 @@ import { VoletNutritionnel } from './patient/entities/volet-nutritionnel.entity'
           Notification,
           // Facturation
           Tarif,
+          Facture,
           // Journaux d'activité
           ActivityLog,
+
         ],
-        // synchronize: true uniquement en développement
-        // En production : utiliser les migrations TypeORM
-        synchronize: config.get<string>('NODE_ENV') === 'development' || config.get<string>('DB_SYNC') === 'true',
+        // synchronize actif sauf si DB_SYNC=false explicitement
+        synchronize: config.get<string>('DB_SYNC') !== 'false',
         logging: config.get<string>('NODE_ENV') === 'development',
       }),
     }),
