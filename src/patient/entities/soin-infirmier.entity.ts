@@ -50,6 +50,10 @@ export class SoinInfirmier {
   @Column({ name: 'resultats_obtenus', type: 'text', nullable: true })
   resultatsObtenus!: string | null;
 
+  @ApiProperty({ example: false, description: 'Validé par le médecin' })
+  @Column({ default: false })
+  valide!: boolean;
+
   @ApiProperty({ example: '2026-04-14T10:00:00.000Z', description: 'Date de création' })
   @CreateDateColumn()
   createdAt!: Date;

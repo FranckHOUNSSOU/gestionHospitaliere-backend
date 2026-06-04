@@ -496,6 +496,15 @@ export class SejourService implements OnModuleInit {
     return this.soinRepo.save(soin);
   }
 
+
+  async updateSoin(sejourId: string, soinId: string, dto: { valide?: boolean }): Promise<SoinInfirmier> {
+    const soin = await this.soinRepo.findOne({ where: { id: soinId, sejour: { id: sejourId } } });
+    if (!soin) throw new NotFoundException();
+    if (dto.valide !== undefined) soin.valide = dto.valide;
+    return this.soinRepo.save(soin);
+  }
+
+
   // ── COMPTES RENDUS ────────────────────────────────────────────────────────
 
   async addCompteRendu(sejourId: string, dto: CreateCompteRenduDto): Promise<CompteRendu> {

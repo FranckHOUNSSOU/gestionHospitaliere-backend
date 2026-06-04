@@ -322,6 +322,16 @@ export class SejourController {
     return this.sejourService.addSoinInfirmier(id, dto);
   }
 
+  @Patch(':id/soins/:soinId')
+  @ApiOperation({ summary: 'Valider/modifier un soin infirmier' })
+  updateSoin(
+    @Param('id') id: string,
+    @Param('soinId') soinId: string,
+    @Body() dto: { valide?: boolean },
+  ): Promise<SoinInfirmier> {
+    return this.sejourService.updateSoin(id, soinId, dto);
+  }
+
   // ── COMPTES RENDUS ────────────────────────────────────────────────────────
 
   @Post(':id/comptes-rendus')
