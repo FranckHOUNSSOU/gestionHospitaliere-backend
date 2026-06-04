@@ -249,7 +249,7 @@ export class AuthService {
 
     return users.map(u => ({
       ...u,
-      photoUrl: photoMap.get(u.id) ?? null,
+      photoUrl: photoMap.get(u.id) ?? u.photoUrl ?? null,
     }));
   }
 
