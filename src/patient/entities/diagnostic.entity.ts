@@ -67,6 +67,26 @@ export class Diagnostic {
   @Column({ default: false })
   valide!: boolean;
 
+  @ApiPropertyOptional({ nullable: true, description: 'ID de l\'agent ayant saisi le diagnostic' })
+  @Column({ name: 'saisi_par_id', type: 'varchar', length: 36, nullable: true })
+  saisiParId!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, description: 'Nom de l\'agent ayant saisi le diagnostic' })
+  @Column({ name: 'saisi_par_nom', type: 'varchar', length: 200, nullable: true })
+  saisiParNom!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, description: 'ID du médecin ayant validé le diagnostic' })
+  @Column({ name: 'valide_par_id', type: 'varchar', length: 36, nullable: true })
+  valideParId!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, description: 'Nom du médecin ayant validé le diagnostic' })
+  @Column({ name: 'valide_par_nom', type: 'varchar', length: 200, nullable: true })
+  valideParNom!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, description: 'Date de validation du diagnostic' })
+  @Column({ name: 'date_validation', type: 'timestamp', nullable: true })
+  dateValidation!: Date | null;
+
   @ApiProperty({ example: '2026-04-14T10:00:00.000Z', description: 'Date de création' })
   @CreateDateColumn()
   createdAt!: Date;

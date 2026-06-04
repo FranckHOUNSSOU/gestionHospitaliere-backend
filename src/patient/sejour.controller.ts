@@ -216,7 +216,8 @@ export class SejourController {
   @ApiResponse({ status: 201, description: 'Diagnostic ajouté.', type: Diagnostic })
   @ApiResponse({ status: 404, description: 'Séjour ou médecin introuvable.' })
   async addDiagnostic(@Param('id') id: string, @Body() dto: CreateDiagnosticDto, @CurrentUser() user: User): Promise<Diagnostic> {
-    const result = await this.sejourService.addDiagnostic(id, dto);
+    const actor = { id: user.id, nom: `${user.prenom} ${user.nom}` };
+    const result = await this.sejourService.addDiagnostic(id, dto, actor);
     this.logService.log({
       actorId: user.id, actorNom: `${user.prenom} ${user.nom}`, actorRole: user.role,
       action: 'AJOUT_DIAGNOSTIC', module: LogModule.SEJOUR,
@@ -232,12 +233,23 @@ export class SejourController {
   @ApiParam({ name: 'diagId', description: 'UUID du diagnostic' })
   @ApiResponse({ status: 200, description: 'Diagnostic mis à jour.', type: Diagnostic })
   @ApiResponse({ status: 404, description: 'Diagnostic introuvable.' })
-  updateDiagnostic(
+  async updateDiagnostic(
     @Param('id') id: string,
     @Param('diagId') diagId: string,
     @Body() dto: { statut?: StatutDiagnostic; valide?: boolean },
+    @CurrentUser() user: User,
   ): Promise<Diagnostic> {
-    return this.sejourService.updateDiagnostic(id, diagId, dto);
+    const actor = { id: user.id, nom: `${user.prenom} ${user.nom}` };
+    const result = await this.sejourService.updateDiagnostic(id, diagId, dto, actor);
+    if (dto.valide) {
+      this.logService.log({
+        actorId: user.id, actorNom: actor.nom, actorRole: user.role,
+        action: 'VALIDATION_DIAGNOSTIC', module: LogModule.SEJOUR,
+        description: `Diagnostic validé (id: ${diagId})`,
+        cible: `Séjour #${id}`, cibleId: id,
+      });
+    }
+    return result;
   }
 
   // ── PRESCRIPTIONS ─────────────────────────────────────────────────────────
@@ -318,18 +330,37 @@ export class SejourController {
   @ApiBody({ type: CreateSoinInfirmierDto })
   @ApiResponse({ status: 201, description: 'Soin enregistré.', type: SoinInfirmier })
   @ApiResponse({ status: 404, description: 'Séjour introuvable.' })
-  addSoinInfirmier(@Param('id') id: string, @Body() dto: CreateSoinInfirmierDto): Promise<SoinInfirmier> {
-    return this.sejourService.addSoinInfirmier(id, dto);
+  async addSoinInfirmier(@Param('id') id: string, @Body() dto: CreateSoinInfirmierDto, @CurrentUser() user: User): Promise<SoinInfirmier> {
+    const actor = { id: user.id, nom: `${user.prenom} ${user.nom}` };
+    const result = await this.sejourService.addSoinInfirmier(id, dto, actor);
+    this.logService.log({
+      actorId: user.id, actorNom: actor.nom, actorRole: user.role,
+      action: 'AJOUT_SOIN', module: LogModule.SEJOUR,
+      description: `Soin infirmier saisi : ${dto.cible}`,
+      cible: `Séjour #${id}`, cibleId: id,
+    });
+    return result;
   }
 
   @Patch(':id/soins/:soinId')
   @ApiOperation({ summary: 'Valider/modifier un soin infirmier' })
-  updateSoin(
+  async updateSoin(
     @Param('id') id: string,
     @Param('soinId') soinId: string,
     @Body() dto: { valide?: boolean },
+    @CurrentUser() user: User,
   ): Promise<SoinInfirmier> {
-    return this.sejourService.updateSoin(id, soinId, dto);
+    const actor = { id: user.id, nom: `${user.prenom} ${user.nom}` };
+    const result = await this.sejourService.updateSoin(id, soinId, dto, actor);
+    if (dto.valide) {
+      this.logService.log({
+        actorId: user.id, actorNom: actor.nom, actorRole: user.role,
+        action: 'VALIDATION_SOIN', module: LogModule.SEJOUR,
+        description: `Soin infirmier validé (id: ${soinId})`,
+        cible: `Séjour #${id}`, cibleId: id,
+      });
+    }
+    return result;
   }
 
   // ── COMPTES RENDUS ────────────────────────────────────────────────────────
