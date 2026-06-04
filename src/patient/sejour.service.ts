@@ -404,9 +404,13 @@ export class SejourService implements OnModuleInit {
 
   // ── PRESCRIPTIONS ─────────────────────────────────────────────────────────
 
-  async addPrescription(sejourId: string, dto: CreatePrescriptionDto): Promise<Prescription> {
+  async addPrescription(
+    sejourId: string,
+    dto: CreatePrescriptionDto,
+    actorUserId?: string,
+  ): Promise<Prescription> {
     const sejour = await this.findSejour(sejourId);
-    const medecin = await this.findMedecinIfProvided(dto.medecinPrescripteurId);
+    const medecin = await this.findMedecinIfProvided(dto.medecinPrescripteurId ?? actorUserId);
     const prescription = this.prescriptionRepo.create({
       sejour,
       medecinPrescripteur: medecin,
