@@ -45,16 +45,31 @@ export class FacturationService implements OnModuleInit {
     @InjectRepository(RendezVous) private readonly rdvRepo:      Repository<RendezVous>,
   ) {}
 
-  // Seed des tarifs au démarrage si la table est vide
   async onModuleInit() {
+    // Créer la table factures si elle n'existe pas
+    try {
+      await this.factureRepo.query(`
+        CREATE TABLE IF NOT EXISTS factures (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          numero_facture VARCHAR(20) UNIQUE NOT NULL,
+          patient_id UUID NOT NULL REFERENCES patients(id) ON DELETE RESTRICT,
+          patient_nom VARCHAR(100) NOT NULL,
+          patient_prenom VARCHAR(100) NOT NULL,
+          montant_total DECIMAL(12,2) DEFAULT 0,
+          statut VARCHAR(20) DEFAULT 'Émise',
+          snapshot JSON,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+      `);
+    } catch { /* ignore */ }
+
+    // Seed des tarifs si la table est vide
     try {
       const count = await this.tarifRepo.count();
       if (count === 0) {
         await this.tarifRepo.save(TARIFS_SEED.map(t => this.tarifRepo.create(t)));
       }
-    } catch {
-      // Table pas encore créée (premier démarrage en prod sans synchronize)
-    }
+    } catch { /* table pas encore créée */ }
   }
 
 
