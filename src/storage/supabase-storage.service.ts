@@ -41,6 +41,37 @@ export class SupabaseStorageService {
     return data.publicUrl;
   }
 
+  async uploadUserPhoto(
+    file: Express.Multer.File,
+    userId: string,
+  ): Promise<string> {
+    const ext = extname(file.originalname);
+    const filename = `photo${ext}`;
+    const path = `users/${userId}/${filename}`;
+
+    await this.supabase.storage
+      .from(this.bucket)
+      .remove([path])
+      .catch(() => {});
+
+    const { error } = await this.supabase.storage
+      .from(this.bucket)
+      .upload(path, file.buffer, {
+        contentType: file.mimetype,
+        upsert: true,
+      });
+
+    if (error) {
+      throw new InternalServerErrorException(`Upload photo échoué : ${error.message}`);
+    }
+
+    const { data } = this.supabase.storage
+      .from(this.bucket)
+      .getPublicUrl(path);
+
+    return data.publicUrl;
+  }
+
   async deleteDocument(publicUrl: string): Promise<void> {
     try {
       const url = new URL(publicUrl);

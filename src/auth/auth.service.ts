@@ -24,6 +24,7 @@ import { UpdateRoleDto } from './users/dto/update-role.dto';
 import { ResetPasswordDto } from './users/dto/reset-password.dto';
 import { FilterUsersDto } from './users/dto/filter-users.dto';
 import { DebloquerCompteDto } from './users/dto/debloquer-compte.dto';
+import { SupabaseStorageService } from '../storage/supabase-storage.service';
 import { JwtPayload } from './strategies/jwt.strategy';
 
 export interface AuthTokens {
@@ -57,6 +58,7 @@ export class AuthService {
     private readonly medecinRepository: Repository<Medecin>,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly storageService: SupabaseStorageService,
   ) {}
 
   // ── INSCRIPTION ADMINISTRATEUR (premier admin du système, route publique) ─
@@ -192,6 +194,7 @@ export class AuthService {
         actif:                true,
         compteBloque:         true,
         tentativesConnexion:  true,
+        photoUrl:             true,
         createdAt:            true,
         derniereConnexion:    true,
         pole:                 { id: true, nom: true },
@@ -445,6 +448,16 @@ export class AuthService {
     return { message: 'Déconnexion réussie.' };
   }
 
+  // ── PHOTO DE PROFIL UTILISATEUR ───────────────────────────────────────────
+  async uploadProfilPhoto(
+    userId: string,
+    file: Express.Multer.File,
+  ): Promise<{ url: string }> {
+    const url = await this.storageService.uploadUserPhoto(file, userId);
+    await this.userRepository.update(userId, { photoUrl: url });
+    return { url };
+  }
+
   // ── PROFIL UTILISATEUR CONNECTÉ ───────────────────────────────────────────
   async profil(userId: string): Promise<Partial<User>> {
     const user = await this.userRepository.findOne({
@@ -457,6 +470,7 @@ export class AuthService {
         role:        true,
         telephone:   true,
         numeroOrdre: true,
+        photoUrl:    true,
         createdAt:   true,
         pole:        { id: true, nom: true },
         service:     { id: true, nom: true, code: true },

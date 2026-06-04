@@ -79,6 +79,10 @@ export class User {
   @JoinColumn({ name: 'createdBy' })
   createur!: User | null;
 
+  @ApiPropertyOptional({ example: 'https://…/photo.jpg', nullable: true })
+  @Column({ type: 'text', nullable: true })
+  photoUrl!: string | null;
+
   @Column({ type: 'text', nullable: true, select: false })
   refreshToken!: string | null;
 
