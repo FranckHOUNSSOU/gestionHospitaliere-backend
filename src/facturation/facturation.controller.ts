@@ -33,4 +33,10 @@ export class FacturationController {
   listeFactures() {
     return this.facturationService.listeFactures();
   }
+
+  @Get('diagnostic')
+  @ApiOperation({ summary: 'Vérifie quelles tables existent en base' })
+  async diagnostic() {
+    return this.facturationService.diagnostic();
+  }
 }

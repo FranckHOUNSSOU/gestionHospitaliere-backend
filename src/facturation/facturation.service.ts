@@ -79,24 +79,42 @@ export class FacturationService implements OnModuleInit {
     return `FAC-${year}-${String(count + 1).padStart(5, '0')}`;
   }
 
-  async emettreFacture(patientId: string): Promise<Facture> {
-    const apercu = await this.getApercuFacture(patientId);
-    if (!apercu) throw new Error('Patient introuvable');
-    const numero  = await this.genNumeroFacture();
-    const facture = this.factureRepo.create({
-      numeroFacture: numero,
-      patientId,
-      patientNom:    apercu.patient.nom,
-      patientPrenom: apercu.patient.prenom,
-      montantTotal:  apercu.totalGeneral,
-      statut:        StatutFacture.EMISE,
-      snapshot:      apercu,
-    });
-    return this.factureRepo.save(facture);
+  async emettreFacture(patientId: string): Promise<Facture | null> {
+    try {
+      const apercu = await this.getApercuFacture(patientId);
+      if (!apercu) return null;
+      const numero  = await this.genNumeroFacture();
+      const facture = this.factureRepo.create({
+        numeroFacture: numero,
+        patientNom:    apercu.patient.nom,
+        patientPrenom: apercu.patient.prenom,
+        montantTotal:  apercu.totalGeneral,
+        statut:        'Emise',
+        snapshot:      apercu,
+      });
+      return this.factureRepo.save(facture);
+    } catch { return null; }
   }
 
   async listeFactures(): Promise<Facture[]> {
-    return this.factureRepo.find({ order: { createdAt: 'DESC' } });
+    try {
+      return await this.factureRepo.find({ order: { createdAt: 'DESC' } });
+    } catch { return []; }
+  }
+
+  async diagnostic(): Promise<{ tables: string[]; colonneTypeSejour: boolean }> {
+    try {
+      const rows: { table_name: string }[] = await this.factureRepo.query(
+        `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name`
+      );
+      const tables = rows.map(r => r.table_name);
+      const colRows: any[] = await this.factureRepo.query(
+        `SELECT 1 FROM information_schema.columns WHERE table_name = 'sejours' AND column_name = 'type_sejour'`
+      );
+      return { tables, colonneTypeSejour: colRows.length > 0 };
+    } catch (e: any) {
+      return { tables: [], colonneTypeSejour: false };
+    }
   }
   async getTarifs(): Promise<Tarif[]> {
     return this.tarifRepo.find({ where: { estActif: true }, order: { categorie: 'ASC', libelle: 'ASC' } });
