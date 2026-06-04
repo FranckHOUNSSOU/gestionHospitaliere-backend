@@ -101,6 +101,21 @@ export class FacturationService implements OnModuleInit {
       return await this.factureRepo.find({ order: { createdAt: 'DESC' } });
     } catch { return []; }
   }
+
+  async diagnostic(): Promise<{ tables: string[]; colonneTypeSejour: boolean }> {
+    try {
+      const rows: { table_name: string }[] = await this.factureRepo.query(
+        `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name`
+      );
+      const tables = rows.map(r => r.table_name);
+      const colRows: any[] = await this.factureRepo.query(
+        `SELECT 1 FROM information_schema.columns WHERE table_name = 'sejours' AND column_name = 'type_sejour'`
+      );
+      return { tables, colonneTypeSejour: colRows.length > 0 };
+    } catch (e: any) {
+      return { tables: [], colonneTypeSejour: false };
+    }
+  }
   async getTarifs(): Promise<Tarif[]> {
     return this.tarifRepo.find({ where: { estActif: true }, order: { categorie: 'ASC', libelle: 'ASC' } });
   }
