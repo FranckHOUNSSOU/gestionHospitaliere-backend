@@ -340,13 +340,25 @@ export class SejourService implements OnModuleInit {
     sejourId: string,
     diagId: string,
     dto: { statut?: StatutDiagnostic; valide?: boolean },
+    actor?: { id: string; nom: string },
   ): Promise<Diagnostic> {
     const diagnostic = await this.diagnosticRepo.findOne({
       where: { id: diagId, sejour: { id: sejourId } },
     });
     if (!diagnostic) throw new NotFoundException(`Diagnostic introuvable (id: ${diagId}).`);
-    if (dto.statut  !== undefined) diagnostic.statut = dto.statut;
-    if (dto.valide  !== undefined) diagnostic.valide = dto.valide;
+    if (dto.statut !== undefined) diagnostic.statut = dto.statut;
+    if (dto.valide !== undefined) {
+      diagnostic.valide = dto.valide;
+      if (dto.valide && actor) {
+        diagnostic.valideParId  = actor.id;
+        diagnostic.valideParNom = actor.nom;
+        diagnostic.dateValidation = new Date();
+      } else if (!dto.valide) {
+        diagnostic.valideParId  = null;
+        diagnostic.valideParNom = null;
+        diagnostic.dateValidation = null;
+      }
+    }
     return this.diagnosticRepo.save(diagnostic);
   }
 
@@ -368,7 +380,11 @@ export class SejourService implements OnModuleInit {
 
   // ── DIAGNOSTICS ───────────────────────────────────────────────────────────
 
-  async addDiagnostic(sejourId: string, dto: CreateDiagnosticDto): Promise<Diagnostic> {
+  async addDiagnostic(
+    sejourId: string,
+    dto: CreateDiagnosticDto,
+    actor?: { id: string; nom: string },
+  ): Promise<Diagnostic> {
     const sejour = await this.findSejour(sejourId);
     const medecin = await this.findMedecinIfProvided(dto.medecinId);
     const diagnostic = this.diagnosticRepo.create({
@@ -380,6 +396,8 @@ export class SejourService implements OnModuleInit {
       statut: dto.statut,
       dateDiagnostic: new Date(dto.dateDiagnostic),
       observations: dto.observations ?? null,
+      saisiParId:  actor?.id  ?? null,
+      saisiParNom: actor?.nom ?? null,
     });
     return this.diagnosticRepo.save(diagnostic);
   }
@@ -482,7 +500,11 @@ export class SejourService implements OnModuleInit {
 
   // ── SOINS INFIRMIERS ──────────────────────────────────────────────────────
 
-  async addSoinInfirmier(sejourId: string, dto: CreateSoinInfirmierDto): Promise<SoinInfirmier> {
+  async addSoinInfirmier(
+    sejourId: string,
+    dto: CreateSoinInfirmierDto,
+    actor?: { id: string; nom: string },
+  ): Promise<SoinInfirmier> {
     const sejour = await this.findSejour(sejourId);
     const soin = this.soinRepo.create({
       sejour,
@@ -492,15 +514,32 @@ export class SejourService implements OnModuleInit {
       donneesObservees: dto.donneesObservees ?? null,
       actionsRealisees: dto.actionsRealisees ?? null,
       resultatsObtenus: dto.resultatsObtenus ?? null,
+      saisiParId:  actor?.id  ?? null,
+      saisiParNom: actor?.nom ?? null,
     });
     return this.soinRepo.save(soin);
   }
 
-
-  async updateSoin(sejourId: string, soinId: string, dto: { valide?: boolean }): Promise<SoinInfirmier> {
+  async updateSoin(
+    sejourId: string,
+    soinId: string,
+    dto: { valide?: boolean },
+    actor?: { id: string; nom: string },
+  ): Promise<SoinInfirmier> {
     const soin = await this.soinRepo.findOne({ where: { id: soinId, sejour: { id: sejourId } } });
     if (!soin) throw new NotFoundException();
-    if (dto.valide !== undefined) soin.valide = dto.valide;
+    if (dto.valide !== undefined) {
+      soin.valide = dto.valide;
+      if (dto.valide && actor) {
+        soin.valideParId  = actor.id;
+        soin.valideParNom = actor.nom;
+        soin.dateValidation = new Date();
+      } else if (!dto.valide) {
+        soin.valideParId  = null;
+        soin.valideParNom = null;
+        soin.dateValidation = null;
+      }
+    }
     return this.soinRepo.save(soin);
   }
 
