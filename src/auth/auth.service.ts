@@ -5,11 +5,13 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, Repository } from 'typeorm';
+import { FindOptionsWhere, In, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 
 import { User, UserRole } from './users/entities/user.entity';
@@ -23,6 +25,10 @@ import { UpdateUserDto } from './users/dto/update-user.dto';
 import { UpdateRoleDto } from './users/dto/update-role.dto';
 import { ResetPasswordDto } from './users/dto/reset-password.dto';
 import { FilterUsersDto } from './users/dto/filter-users.dto';
+import { DebloquerCompteDto } from './users/dto/debloquer-compte.dto';
+import { SupabaseStorageService } from '../storage/supabase-storage.service';
+import { ActivityLogService, LogData } from '../activity-log/activity-log.service';
+import { LogModule } from '../activity-log/activity-log.entity';
 import { JwtPayload } from './strategies/jwt.strategy';
 
 export interface AuthTokens {
@@ -56,7 +62,12 @@ export class AuthService {
     private readonly medecinRepository: Repository<Medecin>,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly storageService: SupabaseStorageService,
+    @Inject(forwardRef(() => ActivityLogService))
+    private readonly logService: ActivityLogService,
   ) {}
+
+  private _log(data: LogData): void { this.logService.log(data); }
 
   // ── INSCRIPTION ADMINISTRATEUR (premier admin du système, route publique) ─
   async inscrire(dto: CreateUserDto): Promise<{ message: string }> {
@@ -147,6 +158,13 @@ export class AuthService {
       await this.medecinRepository.save(profil);
     }
 
+    const admin = await this.userRepository.findOne({ where: { id: adminId }, select: { id: true, nom: true, prenom: true, role: true } });
+    this._log({
+      actorId: adminId, actorNom: admin ? `${admin.prenom} ${admin.nom}` : null, actorRole: admin?.role ?? null,
+      action: 'CREATION_COMPTE', module: LogModule.AUTH,
+      description: `Création du compte ${dto.role} pour ${dto.prenom} ${dto.nom} (${dto.email})`,
+      cible: `${dto.prenom} ${dto.nom}`, cibleId: user.id,
+    });
     const statut = actif ? 'actif' : 'inactif par défaut';
     return { message: `Compte ${dto.role} créé avec succès. Il est ${statut}.` };
   }
@@ -158,6 +176,12 @@ export class AuthService {
     if (user.actif) throw new ConflictException('Ce compte est déjà actif.');
 
     await this.userRepository.update(userId, { actif: true });
+    this._log({
+      actorId: null, actorNom: 'Administrateur', actorRole: UserRole.ADMINISTRATEUR,
+      action: 'ACTIVATION_COMPTE', module: LogModule.AUTH,
+      description: `Activation du compte de ${user.prenom} ${user.nom}`,
+      cible: `${user.prenom} ${user.nom}`, cibleId: userId,
+    });
     return { message: 'Compte activé avec succès.' };
   }
 
@@ -168,37 +192,65 @@ export class AuthService {
     if (!user.actif) throw new ConflictException('Ce compte est déjà inactif.');
 
     await this.userRepository.update(userId, { actif: false });
+    this._log({
+      actorId: null, actorNom: 'Administrateur', actorRole: UserRole.ADMINISTRATEUR,
+      action: 'DESACTIVATION_COMPTE', module: LogModule.AUTH,
+      description: `Désactivation du compte de ${user.prenom} ${user.nom}`,
+      cible: `${user.prenom} ${user.nom}`, cibleId: userId,
+    });
     return { message: 'Compte désactivé avec succès.' };
   }
 
   // ── LISTE DES UTILISATEURS (avec filtres optionnels) ─────────────────────
-  async listerUtilisateurs(filters: FilterUsersDto): Promise<Partial<User>[]> {
+  async listerUtilisateurs(filters: FilterUsersDto): Promise<(Partial<User> & { photoUrl?: string | null })[]> {
     const where: FindOptionsWhere<User> = {};
     if (filters.role      !== undefined) where.role    = filters.role;
     if (filters.actif     !== undefined) where.actif   = filters.actif;
     if (filters.poleId    !== undefined) where.pole    = { id: filters.poleId } as any;
     if (filters.serviceId !== undefined) where.service = { id: filters.serviceId } as any;
 
-    return this.userRepository.find({
+    const users = await this.userRepository.find({
       select: {
-        id:               true,
-        nom:              true,
-        prenom:           true,
-        email:            true,
-        role:             true,
-        telephone:        true,
-        numeroOrdre:      true,
-        actif:            true,
-        createdAt:        true,
-        derniereConnexion:true,
-        pole:             { id: true, nom: true },
-        service:          { id: true, nom: true, code: true },
-        createur:         { id: true, nom: true, prenom: true },
+        id:                   true,
+        nom:                  true,
+        prenom:               true,
+        email:                true,
+        role:                 true,
+        telephone:            true,
+        numeroOrdre:          true,
+        actif:                true,
+        compteBloque:         true,
+        tentativesConnexion:  true,
+        photoUrl:             true,
+        createdAt:            true,
+        derniereConnexion:    true,
+        pole:                 { id: true, nom: true },
+        service:              { id: true, nom: true, code: true },
+        createur:             { id: true, nom: true, prenom: true },
       },
       relations: { pole: true, service: true, createur: true },
       where,
       order: { createdAt: 'DESC' },
     });
+
+    const medecinIds = users
+      .filter(u => u.role === UserRole.MEDECIN)
+      .map(u => u.id);
+
+    if (medecinIds.length === 0) return users;
+
+    const medecins = await this.medecinRepository.find({
+      where: { user: { id: In(medecinIds) } },
+      select: { photoUrl: true, user: { id: true } },
+      relations: { user: true },
+    });
+
+    const photoMap = new Map(medecins.map(m => [m.user.id, m.photoUrl ?? null]));
+
+    return users.map(u => ({
+      ...u,
+      photoUrl: photoMap.get(u.id) ?? null,
+    }));
   }
 
   // ── VOIR UN UTILISATEUR ───────────────────────────────────────────────────
@@ -206,20 +258,22 @@ export class AuthService {
     const user = await this.userRepository.findOne({
       where: { id: userId },
       select: {
-        id:               true,
-        nom:              true,
-        prenom:           true,
-        email:            true,
-        role:             true,
-        telephone:        true,
-        numeroOrdre:      true,
-        actif:            true,
-        createdAt:        true,
-        updatedAt:        true,
-        derniereConnexion:true,
-        pole:             { id: true, nom: true },
-        service:          { id: true, nom: true, code: true },
-        createur:         { id: true, nom: true, prenom: true },
+        id:                   true,
+        nom:                  true,
+        prenom:               true,
+        email:                true,
+        role:                 true,
+        telephone:            true,
+        numeroOrdre:          true,
+        actif:                true,
+        compteBloque:         true,
+        tentativesConnexion:  true,
+        createdAt:            true,
+        updatedAt:            true,
+        derniereConnexion:    true,
+        pole:                 { id: true, nom: true },
+        service:              { id: true, nom: true, code: true },
+        createur:             { id: true, nom: true, prenom: true },
       },
       relations: { pole: true, service: true, createur: true },
     });
@@ -267,6 +321,12 @@ export class AuthService {
     }
 
     await this.userRepository.save(user);
+    this._log({
+      actorId: null, actorNom: 'Administrateur', actorRole: UserRole.ADMINISTRATEUR,
+      action: 'MODIFICATION_COMPTE', module: LogModule.AUTH,
+      description: `Modification du profil de ${user.prenom} ${user.nom}`,
+      cible: `${user.prenom} ${user.nom}`, cibleId: userId,
+    });
     return { message: 'Compte mis à jour avec succès.' };
   }
 
@@ -279,6 +339,12 @@ export class AuthService {
     }
 
     await this.userRepository.update(userId, { role: dto.role });
+    this._log({
+      actorId: null, actorNom: 'Administrateur', actorRole: UserRole.ADMINISTRATEUR,
+      action: 'CHANGEMENT_ROLE', module: LogModule.AUTH,
+      description: `Changement de rôle : ${user.prenom} ${user.nom} → ${dto.role}`,
+      cible: `${user.prenom} ${user.nom}`, cibleId: userId,
+    });
     return { message: `Rôle mis à jour : ${dto.role}.` };
   }
 
@@ -292,6 +358,12 @@ export class AuthService {
 
     user.motDePasse = dto.nouveauMotDePasse;
     await this.userRepository.save(user);
+    this._log({
+      actorId: null, actorNom: 'Administrateur', actorRole: UserRole.ADMINISTRATEUR,
+      action: 'REINITIALISATION_MDP', module: LogModule.AUTH,
+      description: `Réinitialisation du mot de passe de ${user.prenom} ${user.nom}`,
+      cible: `${user.prenom} ${user.nom}`, cibleId: userId,
+    });
     return { message: 'Mot de passe réinitialisé avec succès.' };
   }
 
@@ -300,8 +372,57 @@ export class AuthService {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('Utilisateur introuvable.');
 
+    this._log({
+      actorId: null, actorNom: 'Administrateur', actorRole: UserRole.ADMINISTRATEUR,
+      action: 'SUPPRESSION_COMPTE', module: LogModule.AUTH,
+      description: `Suppression du compte de ${user.prenom} ${user.nom} (${user.email}) — rôle : ${user.role}`,
+      cible: `${user.prenom} ${user.nom}`, cibleId: userId,
+    });
     await this.userRepository.delete(userId);
     return { message: 'Compte supprimé avec succès.' };
+  }
+
+  // ── DÉBLOCAGE D'UN COMPTE (admin) ─────────────────────────────────────────
+  async debloquerCompte(
+    adminId: string,
+    userId: string,
+    dto: DebloquerCompteDto,
+  ): Promise<{ message: string }> {
+    const admin = await this.userRepository.findOne({
+      where: { id: adminId },
+      select: { id: true, motDePasse: true },
+    });
+    if (!admin) throw new NotFoundException('Administrateur introuvable.');
+
+    const mdpValide = await bcrypt.compare(dto.motDePasseAdmin, admin.motDePasse);
+    if (!mdpValide) {
+      throw new UnauthorizedException('Mot de passe administrateur incorrect.');
+    }
+
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Utilisateur introuvable.');
+    if (!user.compteBloque) {
+      throw new BadRequestException("Ce compte n'est pas bloqué.");
+    }
+
+    user.compteBloque = false;
+    user.tentativesConnexion = 0;
+    if (dto.nouveauMotDePasse) {
+      user.motDePasse = dto.nouveauMotDePasse;
+    }
+    await this.userRepository.save(user);
+
+    const msg = dto.nouveauMotDePasse
+      ? 'Compte débloqué et mot de passe réinitialisé avec succès.'
+      : 'Compte débloqué avec succès.';
+    const adminInfo = await this.userRepository.findOne({ where: { id: adminId }, select: { id: true, nom: true, prenom: true, role: true } });
+    this._log({
+      actorId: adminId, actorNom: adminInfo ? `${adminInfo.prenom} ${adminInfo.nom}` : null, actorRole: adminInfo?.role ?? null,
+      action: 'DEBLOCAGE_COMPTE', module: LogModule.AUTH,
+      description: `Déblocage du compte de ${user.prenom} ${user.nom}${dto.nouveauMotDePasse ? ' avec réinitialisation du mot de passe' : ''}`,
+      cible: `${user.prenom} ${user.nom}`, cibleId: userId,
+    });
+    return { message: msg };
   }
 
   // ── CONNEXION ─────────────────────────────────────────────────────────────
@@ -311,22 +432,55 @@ export class AuthService {
       select: {
         id: true, nom: true, prenom: true, email: true,
         motDePasse: true, role: true, actif: true,
+        compteBloque: true, tentativesConnexion: true,
         pole: { id: true, nom: true },
       },
       relations: { pole: true },
     });
 
     if (!user) throw new UnauthorizedException('Identifiants incorrects.');
+
+    if (user.compteBloque) {
+      throw new UnauthorizedException(
+        'Votre compte a été bloqué suite à trop de tentatives échouées. Contactez un administrateur.',
+      );
+    }
+
     if (!user.actif) {
       throw new UnauthorizedException('Votre compte est inactif. Contactez un administrateur.');
     }
 
     const motDePasseValide = await bcrypt.compare(dto.motDePasse, user.motDePasse);
-    if (!motDePasseValide) throw new UnauthorizedException('Identifiants incorrects.');
+    if (!motDePasseValide) {
+      const nouvelleTentative = user.tentativesConnexion + 1;
+      const bloque = nouvelleTentative >= 5;
+      await this.userRepository.update(user.id, {
+        tentativesConnexion: nouvelleTentative,
+        compteBloque: bloque,
+      });
+      if (bloque) {
+        throw new UnauthorizedException(
+          'Compte bloqué : 5 tentatives échouées consécutives. Contactez un administrateur.',
+        );
+      }
+      throw new UnauthorizedException(
+        `Identifiants incorrects. Tentative ${nouvelleTentative}/5.`,
+      );
+    }
+
+    await this.userRepository.update(user.id, {
+      tentativesConnexion: 0,
+      derniereConnexion: new Date(),
+    });
 
     const tokens = await this._genererTokens(user);
     await this._sauvegarderRefreshToken(user.id, tokens.refreshToken);
-    await this.userRepository.update(user.id, { derniereConnexion: new Date() });
+
+    this._log({
+      actorId: user.id, actorNom: `${user.prenom} ${user.nom}`, actorRole: user.role,
+      action: 'CONNEXION', module: LogModule.AUTH,
+      description: `Connexion réussie de ${user.prenom} ${user.nom} (${user.email}) — rôle : ${user.role}`,
+    });
 
     return {
       tokens,
@@ -354,8 +508,26 @@ export class AuthService {
 
   // ── DÉCONNEXION ───────────────────────────────────────────────────────────
   async logout(userId: string): Promise<{ message: string }> {
+    const user = await this.userRepository.findOne({ where: { id: userId }, select: { id: true, nom: true, prenom: true, role: true } });
     await this.userRepository.update(userId, { refreshToken: null });
+    if (user) {
+      this._log({
+        actorId: userId, actorNom: `${user.prenom} ${user.nom}`, actorRole: user.role,
+        action: 'DECONNEXION', module: LogModule.AUTH,
+        description: `Déconnexion de ${user.prenom} ${user.nom}`,
+      });
+    }
     return { message: 'Déconnexion réussie.' };
+  }
+
+  // ── PHOTO DE PROFIL UTILISATEUR ───────────────────────────────────────────
+  async uploadProfilPhoto(
+    userId: string,
+    file: Express.Multer.File,
+  ): Promise<{ url: string }> {
+    const url = await this.storageService.uploadUserPhoto(file, userId);
+    await this.userRepository.update(userId, { photoUrl: url });
+    return { url };
   }
 
   // ── PROFIL UTILISATEUR CONNECTÉ ───────────────────────────────────────────
@@ -370,6 +542,7 @@ export class AuthService {
         role:        true,
         telephone:   true,
         numeroOrdre: true,
+        photoUrl:    true,
         createdAt:   true,
         pole:        { id: true, nom: true },
         service:     { id: true, nom: true, code: true },

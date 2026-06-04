@@ -14,6 +14,9 @@ import { Notification } from './notification/notification.entity';
 import { FacturationModule } from './facturation/facturation.module';
 import { Tarif } from './facturation/tarif.entity';
 import { Facture } from './facturation/facture.entity';
+import { ActivityLogModule } from './activity-log/activity-log.module';
+import { ActivityLog } from './activity-log/activity-log.entity';
+
 
 // ── Entités ───────────────────────────────────────────────────────────────────
 import { User } from './auth/users/entities/user.entity';
@@ -107,6 +110,9 @@ import { VoletNutritionnel } from './patient/entities/volet-nutritionnel.entity'
           // Facturation
           Tarif,
           Facture,
+          // Journaux d'activité
+          ActivityLog,
+
         ],
         // synchronize actif sauf si DB_SYNC=false explicitement
         synchronize: config.get<string>('DB_SYNC') !== 'false',
@@ -122,6 +128,7 @@ import { VoletNutritionnel } from './patient/entities/volet-nutritionnel.entity'
     RendezVousModule,
     NotificationModule,
     FacturationModule,
+    ActivityLogModule,
   ],
 })
 export class AppModule {}

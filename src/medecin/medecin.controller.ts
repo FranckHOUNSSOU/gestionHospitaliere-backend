@@ -11,6 +11,9 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -19,7 +22,10 @@ import {
   ApiBearerAuth,
   ApiBody,
   ApiParam,
+  ApiConsumes,
 } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { MedecinService } from './medecin.service';
 import { Medecin } from './entities/medecin.entity';
 import { MedecinSpecialite } from './entities/medecin-specialite.entity';
@@ -36,13 +42,31 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { MessageResponse } from '../auth/dto/auth.responses';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../auth/users/entities/user.entity';
+import { SupabaseStorageService } from '../storage/supabase-storage.service';
+import { ActivityLogService } from '../activity-log/activity-log.service';
+import { LogModule } from '../activity-log/activity-log.entity';
+
+const documentFilter = (
+  _req: any,
+  file: Express.Multer.File,
+  cb: (error: Error | null, accept: boolean) => void,
+) => {
+  if (!file.mimetype.match(/\/(pdf|jpg|jpeg|png)$/)) {
+    return cb(new BadRequestException('Seuls les fichiers PDF et images sont autorisés.'), false);
+  }
+  cb(null, true);
+};
 
 @ApiTags('Médecins')
 @ApiBearerAuth('access-token')
 @UseGuards(JwtAuthGuard)
 @Controller('medecins')
 export class MedecinController {
-  constructor(private readonly medecinService: MedecinService) {}
+  constructor(
+    private readonly medecinService: MedecinService,
+    private readonly storageService: SupabaseStorageService,
+    private readonly logService: ActivityLogService,
+  ) {}
 
   // ── PROFIL ────────────────────────────────────────────────────────────────
 
@@ -57,8 +81,15 @@ export class MedecinController {
   @ApiResponse({ status: 400, description: 'L\'utilisateur n\'a pas le rôle MEDECIN.' })
   @ApiResponse({ status: 404, description: 'Utilisateur introuvable.' })
   @ApiResponse({ status: 409, description: 'Profil déjà existant ou numéro d\'ordre en double.' })
-  create(@Body() dto: CreateMedecinDto): Promise<Medecin> {
-    return this.medecinService.create(dto);
+  async create(@Body() dto: CreateMedecinDto, @CurrentUser() user: User): Promise<Medecin> {
+    const result = await this.medecinService.create(dto);
+    this.logService.log({
+      actorId: user.id, actorNom: `${user.prenom} ${user.nom}`, actorRole: user.role,
+      action: 'CREATION_PROFIL_MEDECIN', module: LogModule.MEDECIN,
+      description: `Création du profil médecin pour l'utilisateur #${dto.userId}`,
+      cible: `Médecin #${result.id}`, cibleId: result.id,
+    });
+    return result;
   }
 
   @Get()
@@ -80,6 +111,38 @@ export class MedecinController {
   @ApiResponse({ status: 404, description: 'Profil médecin introuvable pour cet utilisateur.' })
   monProfil(@CurrentUser() user: User): Promise<Medecin> {
     return this.medecinService.findByUserId(user.id);
+  }
+
+  // ── UPLOAD DOCUMENT ───────────────────────────────────────────────────────
+
+  @Post(':id/documents')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Uploader un document médecin',
+    description: 'Upload un fichier (PDF ou image) vers Supabase Storage et retourne son URL publique. À utiliser avant la création d\'un diplôme ou d\'une accréditation.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID du profil médecin' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { fichier: { type: 'string', format: 'binary' } },
+    },
+  })
+  @ApiResponse({ status: 201, description: 'URL du document uploadé.', schema: { example: { url: 'https://…' } } })
+  @ApiResponse({ status: 400, description: 'Aucun fichier ou format non supporté.' })
+  @UseInterceptors(FileInterceptor('fichier', {
+    storage: memoryStorage(),
+    fileFilter: documentFilter,
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  }))
+  async uploadDocument(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ): Promise<{ url: string }> {
+    if (!file) throw new BadRequestException('Aucun fichier envoyé.');
+    const url = await this.storageService.uploadDocument(file, id);
+    return { url };
   }
 
   @Get(':id')

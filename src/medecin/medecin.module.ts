@@ -12,6 +12,8 @@ import { MedecinController } from './medecin.controller';
 import { AuthModule } from '../auth/auth.module';
 import { ServiceModule } from '../service/service.module';
 import { User } from '../auth/users/entities/user.entity';
+import { SupabaseStorageService } from '../storage/supabase-storage.service';
+import { ActivityLogModule } from '../activity-log/activity-log.module';
 
 @Module({
   imports: [
@@ -23,11 +25,12 @@ import { User } from '../auth/users/entities/user.entity';
       MedecinAffectation,
       User,          // pour vérifier le rôle lors de la création
     ]),
-    AuthModule,      // JwtAuthGuard, RolesGuard, PassportModule
-    ServiceModule,   // accès à ServiceRepository (vérif service actif) + TypeOrmModule.forFeature([Service])
+    AuthModule,
+    ServiceModule,
+    ActivityLogModule,
   ],
   controllers: [MedecinController],
-  providers: [MedecinService],
+  providers: [MedecinService, SupabaseStorageService],
   exports: [MedecinService, TypeOrmModule],
 })
 export class MedecinModule {}

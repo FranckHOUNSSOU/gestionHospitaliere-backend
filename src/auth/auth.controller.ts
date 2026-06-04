@@ -10,7 +10,13 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { ApiConsumes } from '@nestjs/swagger';
 import {
   ApiTags,
   ApiOperation,
@@ -29,6 +35,7 @@ import { UpdateUserDto } from './users/dto/update-user.dto';
 import { UpdateRoleDto } from './users/dto/update-role.dto';
 import { ResetPasswordDto } from './users/dto/reset-password.dto';
 import { FilterUsersDto } from './users/dto/filter-users.dto';
+import { DebloquerCompteDto } from './users/dto/debloquer-compte.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { RolesGuard } from './guards/roles.guard';
@@ -163,6 +170,31 @@ export class AuthController {
     return this.authService.reinitialiserMotDePasse(id, dto);
   }
 
+  @Patch('users/:id/debloquer')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMINISTRATEUR)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({
+    summary: 'Débloquer un compte (admin)',
+    description:
+      "Débloque un compte verrouillé après trop de tentatives. L'admin doit fournir son propre mot de passe. " +
+      'Un nouveau mot de passe peut être attribué simultanément.',
+  })
+  @ApiParam({ name: 'id', description: "UUID de l'utilisateur à débloquer" })
+  @ApiBody({ type: DebloquerCompteDto })
+  @ApiResponse({ status: 200, description: 'Compte débloqué.', type: MessageResponse })
+  @ApiResponse({ status: 400, description: "Le compte n'est pas bloqué." })
+  @ApiResponse({ status: 401, description: 'Mot de passe administrateur incorrect.' })
+  @ApiResponse({ status: 404, description: 'Utilisateur introuvable.' })
+  @ApiResponse({ status: 403, description: "Accès réservé à l'administrateur." })
+  debloquerCompte(
+    @CurrentUser() admin: User,
+    @Param('id') id: string,
+    @Body() dto: DebloquerCompteDto,
+  ) {
+    return this.authService.debloquerCompte(admin.id, id, dto);
+  }
+
   @Patch('users/:id/activer')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMINISTRATEUR)
@@ -245,5 +277,40 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Non authentifié.' })
   profil(@CurrentUser() user: User) {
     return this.authService.profil(user.id);
+  }
+
+  @Post('profil/photo')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('access-token')
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Uploader la photo de profil',
+    description: 'Upload une photo de profil (image ≤ 5 Mo) et met à jour le champ photoUrl de l\'utilisateur connecté.',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { fichier: { type: 'string', format: 'binary' } },
+    },
+  })
+  @ApiResponse({ status: 200, description: 'URL de la photo.', schema: { example: { url: 'https://…' } } })
+  @ApiResponse({ status: 400, description: 'Aucun fichier ou format non supporté.' })
+  @UseInterceptors(FileInterceptor('fichier', {
+    storage: memoryStorage(),
+    fileFilter: (_req, file, cb) => {
+      if (!file.mimetype.startsWith('image/')) {
+        return cb(new BadRequestException('Seules les images sont acceptées.'), false);
+      }
+      cb(null, true);
+    },
+    limits: { fileSize: 5 * 1024 * 1024 },
+  }))
+  uploadProfilPhoto(
+    @CurrentUser() user: User,
+    @UploadedFile() file: Express.Multer.File,
+  ): Promise<{ url: string }> {
+    if (!file) throw new BadRequestException('Aucun fichier envoyé.');
+    return this.authService.uploadProfilPhoto(user.id, file);
   }
 }
