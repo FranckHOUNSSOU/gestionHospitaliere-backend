@@ -262,7 +262,7 @@ export class SejourController {
   @ApiResponse({ status: 201, description: 'Prescription ajoutée.', type: Prescription })
   @ApiResponse({ status: 404, description: 'Séjour ou médecin introuvable.' })
   async addPrescription(@Param('id') id: string, @Body() dto: CreatePrescriptionDto, @CurrentUser() user: User): Promise<Prescription> {
-    const result = await this.sejourService.addPrescription(id, dto);
+    const result = await this.sejourService.addPrescription(id, dto, user.id);
     this.logService.log({
       actorId: user.id, actorNom: `${user.prenom} ${user.nom}`, actorRole: user.role,
       action: 'AJOUT_PRESCRIPTION', module: LogModule.SEJOUR,
