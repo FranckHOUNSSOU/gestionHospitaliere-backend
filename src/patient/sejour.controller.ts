@@ -55,13 +55,18 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../auth/users/entities/user.entity';
 import { StatutDiagnostic } from './entities/diagnostic.entity';
+import { ActivityLogService } from '../activity-log/activity-log.service';
+import { LogModule } from '../activity-log/activity-log.entity';
 
 @ApiTags('Séjours')
 @ApiBearerAuth('access-token')
 @UseGuards(JwtAuthGuard)
 @Controller('sejours')
 export class SejourController {
-  constructor(private readonly sejourService: SejourService) {}
+  constructor(
+    private readonly sejourService: SejourService,
+    private readonly logService: ActivityLogService,
+  ) {}
 
   // ── SÉJOURS ───────────────────────────────────────────────────────────────
 
@@ -73,8 +78,15 @@ export class SejourController {
   @ApiResponse({ status: 201, description: 'Séjour créé.', type: Sejour })
   @ApiResponse({ status: 404, description: 'Patient introuvable.' })
   @ApiResponse({ status: 409, description: 'Numéro de séjour déjà utilisé.' })
-  creerSejour(@Param('patientId') patientId: string, @Body() dto: CreateSejourDto): Promise<Sejour> {
-    return this.sejourService.creerSejour(patientId, dto);
+  async creerSejour(@Param('patientId') patientId: string, @Body() dto: CreateSejourDto, @CurrentUser() user: User): Promise<Sejour> {
+    const result = await this.sejourService.creerSejour(patientId, dto);
+    this.logService.log({
+      actorId: user.id, actorNom: `${user.prenom} ${user.nom}`, actorRole: user.role,
+      action: 'OUVERTURE_SEJOUR', module: LogModule.SEJOUR,
+      description: `Ouverture du séjour ${result.numeroSejour} — motif : ${dto.motifHospitalisation}`,
+      cible: result.numeroSejour, cibleId: result.id,
+    });
+    return result;
   }
 
   @Get('patient/:patientId')
@@ -147,8 +159,15 @@ export class SejourController {
   @ApiResponse({ status: 200, description: 'Séjour clôturé.', type: Sejour })
   @ApiResponse({ status: 404, description: 'Séjour introuvable.' })
   @ApiResponse({ status: 409, description: 'Séjour déjà clôturé.' })
-  cloturerSejour(@Param('id') id: string, @Body() dto: CloturerSejourDto): Promise<Sejour> {
-    return this.sejourService.cloturerSejour(id, dto);
+  async cloturerSejour(@Param('id') id: string, @Body() dto: CloturerSejourDto, @CurrentUser() user: User): Promise<Sejour> {
+    const result = await this.sejourService.cloturerSejour(id, dto);
+    this.logService.log({
+      actorId: user.id, actorNom: `${user.prenom} ${user.nom}`, actorRole: user.role,
+      action: 'CLOTURE_SEJOUR', module: LogModule.SEJOUR,
+      description: `Clôture du séjour ${result.numeroSejour} — mode sortie : ${dto.modeSortie ?? 'non précisé'}`,
+      cible: result.numeroSejour, cibleId: result.id,
+    });
+    return result;
   }
 
   // ── MOUVEMENTS ────────────────────────────────────────────────────────────
@@ -160,8 +179,15 @@ export class SejourController {
   @ApiBody({ type: CreateMouvementDto })
   @ApiResponse({ status: 201, description: 'Mouvement enregistré.', type: Mouvement })
   @ApiResponse({ status: 404, description: 'Séjour introuvable.' })
-  addMouvement(@Param('id') id: string, @Body() dto: CreateMouvementDto): Promise<Mouvement> {
-    return this.sejourService.addMouvement(id, dto);
+  async addMouvement(@Param('id') id: string, @Body() dto: CreateMouvementDto, @CurrentUser() user: User): Promise<Mouvement> {
+    const result = await this.sejourService.addMouvement(id, dto);
+    this.logService.log({
+      actorId: user.id, actorNom: `${user.prenom} ${user.nom}`, actorRole: user.role,
+      action: 'MOUVEMENT_PATIENT', module: LogModule.SEJOUR,
+      description: `Mouvement enregistré sur le séjour — type : ${dto.typeMouvement ?? 'transfert'}`,
+      cible: `Séjour #${id}`, cibleId: id,
+    });
+    return result;
   }
 
   // ── DIAGNOSTICS ───────────────────────────────────────────────────────────
@@ -173,8 +199,15 @@ export class SejourController {
   @ApiBody({ type: CreateDiagnosticDto })
   @ApiResponse({ status: 201, description: 'Diagnostic ajouté.', type: Diagnostic })
   @ApiResponse({ status: 404, description: 'Séjour ou médecin introuvable.' })
-  addDiagnostic(@Param('id') id: string, @Body() dto: CreateDiagnosticDto): Promise<Diagnostic> {
-    return this.sejourService.addDiagnostic(id, dto);
+  async addDiagnostic(@Param('id') id: string, @Body() dto: CreateDiagnosticDto, @CurrentUser() user: User): Promise<Diagnostic> {
+    const result = await this.sejourService.addDiagnostic(id, dto);
+    this.logService.log({
+      actorId: user.id, actorNom: `${user.prenom} ${user.nom}`, actorRole: user.role,
+      action: 'AJOUT_DIAGNOSTIC', module: LogModule.SEJOUR,
+      description: `Diagnostic ajouté : ${dto.libelle} (${dto.codeCim10}) — statut : ${dto.statut}`,
+      cible: `Séjour #${id}`, cibleId: id,
+    });
+    return result;
   }
 
   @Patch(':id/diagnostics/:diagId')
@@ -200,8 +233,15 @@ export class SejourController {
   @ApiBody({ type: CreatePrescriptionDto })
   @ApiResponse({ status: 201, description: 'Prescription ajoutée.', type: Prescription })
   @ApiResponse({ status: 404, description: 'Séjour ou médecin introuvable.' })
-  addPrescription(@Param('id') id: string, @Body() dto: CreatePrescriptionDto): Promise<Prescription> {
-    return this.sejourService.addPrescription(id, dto);
+  async addPrescription(@Param('id') id: string, @Body() dto: CreatePrescriptionDto, @CurrentUser() user: User): Promise<Prescription> {
+    const result = await this.sejourService.addPrescription(id, dto);
+    this.logService.log({
+      actorId: user.id, actorNom: `${user.prenom} ${user.nom}`, actorRole: user.role,
+      action: 'AJOUT_PRESCRIPTION', module: LogModule.SEJOUR,
+      description: `Prescription ajoutée : ${dto.nomMedicamentDci} ${dto.dose}${dto.unite} — ${dto.frequence}`,
+      cible: `Séjour #${id}`, cibleId: id,
+    });
+    return result;
   }
 
   @Patch(':id/prescriptions/:pid')
