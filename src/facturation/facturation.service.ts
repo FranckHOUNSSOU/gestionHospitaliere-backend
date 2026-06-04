@@ -86,6 +86,7 @@ export class FacturationService implements OnModuleInit {
       const numero  = await this.genNumeroFacture();
       const facture = this.factureRepo.create({
         numeroFacture: numero,
+        patient:       { id: patientId } as any,
         patientNom:    apercu.patient.nom,
         patientPrenom: apercu.patient.prenom,
         montantTotal:  apercu.totalGeneral,
