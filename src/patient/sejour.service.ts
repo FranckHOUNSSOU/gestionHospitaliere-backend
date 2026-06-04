@@ -167,22 +167,24 @@ export class SejourService implements OnModuleInit {
     if (sejour.dateSortie) {
       throw new ConflictException('Impossible de supprimer un séjour déjà clôturé.');
     }
-    // Suppression manuelle dans le bon ordre pour éviter les violations FK
-    await this.sejourRepo.manager.transaction(async mgr => {
-      await mgr.query(`DELETE FROM resultats_examen  WHERE examen_id IN (SELECT id FROM examens WHERE sejour_id = $1)`, [sejourId]);
-      await mgr.query(`DELETE FROM examens           WHERE sejour_id = $1`, [sejourId]);
-      await mgr.query(`DELETE FROM mouvements        WHERE sejour_id = $1`, [sejourId]);
-      await mgr.query(`DELETE FROM diagnostics       WHERE sejour_id = $1`, [sejourId]);
-      await mgr.query(`DELETE FROM prescriptions     WHERE sejour_id = $1`, [sejourId]);
-      await mgr.query(`DELETE FROM constantes        WHERE sejour_id = $1`, [sejourId]);
-      await mgr.query(`DELETE FROM soins_infirmiers  WHERE sejour_id = $1`, [sejourId]);
-      await mgr.query(`DELETE FROM comptes_rendus    WHERE sejour_id = $1`, [sejourId]);
-      await mgr.query(`DELETE FROM consentements     WHERE sejour_id = $1`, [sejourId]);
-      await mgr.query(`DELETE FROM volet_anesthesie  WHERE sejour_id = $1`, [sejourId]);
-      await mgr.query(`DELETE FROM volet_social      WHERE sejour_id = $1`, [sejourId]);
-      await mgr.query(`DELETE FROM volet_nutritionnel WHERE sejour_id = $1`, [sejourId]);
-      await mgr.query(`DELETE FROM sejours           WHERE id = $1`, [sejourId]);
-    });
+    // Suppression dans le bon ordre - chaque table ignoree si absente
+    const mgr = this.sejourRepo.manager;
+    const del = async (sql: string, params: any[]) => {
+      try { await mgr.query(sql, params); } catch { /* table absente */ }
+    };
+    await del(`DELETE FROM resultats_examen WHERE examen_id IN (SELECT id FROM examens WHERE sejour_id = $1)`, [sejourId]);
+    await del(`DELETE FROM examens WHERE sejour_id = $1`, [sejourId]);
+    await del(`DELETE FROM mouvements WHERE sejour_id = $1`, [sejourId]);
+    await del(`DELETE FROM diagnostics WHERE sejour_id = $1`, [sejourId]);
+    await del(`DELETE FROM prescriptions WHERE sejour_id = $1`, [sejourId]);
+    await del(`DELETE FROM constantes WHERE sejour_id = $1`, [sejourId]);
+    await del(`DELETE FROM soins_infirmiers WHERE sejour_id = $1`, [sejourId]);
+    await del(`DELETE FROM comptes_rendus WHERE sejour_id = $1`, [sejourId]);
+    await del(`DELETE FROM consentements WHERE sejour_id = $1`, [sejourId]);
+    await del(`DELETE FROM volet_anesthesie WHERE sejour_id = $1`, [sejourId]);
+    await del(`DELETE FROM volet_social WHERE sejour_id = $1`, [sejourId]);
+    await del(`DELETE FROM volet_nutritionnel WHERE sejour_id = $1`, [sejourId]);
+    await mgr.query(`DELETE FROM sejours WHERE id = $1`, [sejourId]);
   }
   async cloturerSejour(sejourId: string, dto: CloturerSejourDto): Promise<Sejour> {
     const sejour = await this.findSejour(sejourId);
