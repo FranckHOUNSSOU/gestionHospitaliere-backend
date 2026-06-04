@@ -26,6 +26,7 @@ import { PatientController } from './patient.controller';
 import { SejourController } from './sejour.controller';
 import { AuthModule } from '../auth/auth.module';
 import { MedecinModule } from '../medecin/medecin.module';
+import { ActivityLogModule } from '../activity-log/activity-log.module';
 import { User } from '../auth/users/entities/user.entity';
 
 @Module({
@@ -51,8 +52,9 @@ import { User } from '../auth/users/entities/user.entity';
       VoletSocial,
       VoletNutritionnel,
     ]),
-    AuthModule,    // JwtAuthGuard, RolesGuard
-    MedecinModule, // accès à MedecinRepository (FK vers médecins) + TypeOrmModule.forFeature([Medecin])
+    AuthModule,
+    MedecinModule,
+    ActivityLogModule,
   ],
   controllers: [PatientController, SejourController],
   providers: [PatientService, SejourService],

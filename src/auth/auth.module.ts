@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -13,6 +13,7 @@ import { Pole } from '../service/pole.entity';
 import { Service } from '../service/service.entity';
 import { Medecin } from '../medecin/entities/medecin.entity';
 import { SupabaseStorageService } from '../storage/supabase-storage.service';
+import { ActivityLogModule } from '../activity-log/activity-log.module';
 
 @Module({
   imports: [
@@ -30,6 +31,8 @@ import { SupabaseStorageService } from '../storage/supabase-storage.service';
         },
       }),
     }),
+
+    forwardRef(() => ActivityLogModule),
   ],
   controllers: [AuthController],
   providers: [

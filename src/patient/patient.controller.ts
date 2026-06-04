@@ -43,13 +43,18 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserRole } from '../auth/users/entities/user.entity';
 import { MessageResponse } from '../auth/dto/auth.responses';
+import { ActivityLogService } from '../activity-log/activity-log.service';
+import { LogModule } from '../activity-log/activity-log.entity';
 
 @ApiTags('Patients')
 @ApiBearerAuth('access-token')
 @UseGuards(JwtAuthGuard)
 @Controller('patients')
 export class PatientController {
-  constructor(private readonly patientService: PatientService) {}
+  constructor(
+    private readonly patientService: PatientService,
+    private readonly logService: ActivityLogService,
+  ) {}
 
   // ── PROFIL ────────────────────────────────────────────────────────────────
 
@@ -59,8 +64,15 @@ export class PatientController {
   @ApiBody({ type: CreatePatientDto })
   @ApiResponse({ status: 201, description: 'Patient créé.', type: Patient })
   @ApiResponse({ status: 409, description: 'Numéro IPP déjà utilisé.' })
-  create(@Body() dto: CreatePatientDto): Promise<Patient> {
-    return this.patientService.create(dto);
+  async create(@Body() dto: CreatePatientDto, @CurrentUser() user: User): Promise<Patient> {
+    const result = await this.patientService.create(dto);
+    this.logService.log({
+      actorId: user.id, actorNom: `${user.prenom} ${user.nom}`, actorRole: user.role,
+      action: 'CREATION_PATIENT', module: LogModule.PATIENT,
+      description: `Création du dossier patient ${result.prenom} ${result.nom} (IPP : ${result.numeroIpp})`,
+      cible: `${result.prenom} ${result.nom}`, cibleId: result.id,
+    });
+    return result;
   }
 
   @Get()
@@ -92,11 +104,18 @@ export class PatientController {
   @ApiResponse({ status: 201, description: 'Patient créé et contact d\'urgence enregistré.', type: Patient })
   @ApiResponse({ status: 403, description: 'Accès refusé — rôle insuffisant.' })
   @ApiResponse({ status: 409, description: 'Conflit IPP.' })
-  accueillirNouveauPatient(
+  async accueillirNouveauPatient(
     @Body() dto: CreatePatientAccueilDto,
     @CurrentUser() user: User,
   ): Promise<Patient> {
-    return this.patientService.accueillirNouveauPatient(dto, user);
+    const result = await this.patientService.accueillirNouveauPatient(dto, user);
+    this.logService.log({
+      actorId: user.id, actorNom: `${user.prenom} ${user.nom}`, actorRole: user.role,
+      action: 'ACCUEIL_PATIENT', module: LogModule.PATIENT,
+      description: `Accueil du patient ${result.prenom} ${result.nom} (IPP : ${result.numeroIpp})`,
+      cible: `${result.prenom} ${result.nom}`, cibleId: result.id,
+    });
+    return result;
   }
 
   @Post('critique')
@@ -107,11 +126,18 @@ export class PatientController {
   @ApiBody({ type: CreatePatientCritiqueDto })
   @ApiResponse({ status: 201, description: 'Dossier provisoire créé.', type: Patient })
   @ApiResponse({ status: 403, description: 'Accès refusé — rôle insuffisant.' })
-  admettrePatientCritique(
+  async admettrePatientCritique(
     @Body() dto: CreatePatientCritiqueDto,
     @CurrentUser() user: User,
   ): Promise<Patient> {
-    return this.patientService.admettrePatientCritique(dto, user);
+    const result = await this.patientService.admettrePatientCritique(dto, user);
+    this.logService.log({
+      actorId: user.id, actorNom: `${user.prenom} ${user.nom}`, actorRole: user.role,
+      action: 'ADMISSION_URGENCE', module: LogModule.PATIENT,
+      description: `Admission urgence — dossier provisoire créé (IPP : ${result.numeroIpp})`,
+      cible: result.numeroIpp, cibleId: result.id,
+    });
+    return result;
   }
 
   @Get('recherche')
@@ -147,8 +173,15 @@ export class PatientController {
   @ApiResponse({ status: 200, description: 'Patient mis à jour.', type: Patient })
   @ApiResponse({ status: 404, description: 'Patient introuvable.' })
   @ApiResponse({ status: 409, description: 'Numéro IPP déjà utilisé.' })
-  update(@Param('id') id: string, @Body() dto: UpdatePatientDto): Promise<Patient> {
-    return this.patientService.update(id, dto);
+  async update(@Param('id') id: string, @Body() dto: UpdatePatientDto, @CurrentUser() user: User): Promise<Patient> {
+    const result = await this.patientService.update(id, dto);
+    this.logService.log({
+      actorId: user.id, actorNom: `${user.prenom} ${user.nom}`, actorRole: user.role,
+      action: 'MODIFICATION_PATIENT', module: LogModule.PATIENT,
+      description: `Modification du dossier patient ${result.prenom} ${result.nom} (IPP : ${result.numeroIpp})`,
+      cible: `${result.prenom} ${result.nom}`, cibleId: result.id,
+    });
+    return result;
   }
 
   @Patch(':id/completer')

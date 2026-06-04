@@ -27,13 +27,18 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User, UserRole } from '../auth/users/entities/user.entity';
+import { ActivityLogService } from '../activity-log/activity-log.service';
+import { LogModule } from '../activity-log/activity-log.entity';
 
 @ApiTags('Rendez-vous')
 @ApiBearerAuth('access-token')
 @UseGuards(JwtAuthGuard)
 @Controller('rendezvous')
 export class RendezVousController {
-  constructor(private readonly rdvService: RendezVousService) {}
+  constructor(
+    private readonly rdvService: RendezVousService,
+    private readonly logService: ActivityLogService,
+  ) {}
 
   // ── AGENT ADMINISTRATIF : créer un RDV ────────────────────────────────────
 
@@ -44,8 +49,15 @@ export class RendezVousController {
   @ApiOperation({ summary: 'Créer un rendez-vous pour un patient avec un médecin' })
   @ApiResponse({ status: 201, description: 'Rendez-vous créé.' })
   @ApiResponse({ status: 404, description: 'Patient ou médecin introuvable.' })
-  create(@Body() dto: CreateRendezVousDto, @CurrentUser() user: User) {
-    return this.rdvService.create(dto, user);
+  async create(@Body() dto: CreateRendezVousDto, @CurrentUser() user: User) {
+    const result = await this.rdvService.create(dto, user);
+    this.logService.log({
+      actorId: user.id, actorNom: `${user.prenom} ${user.nom}`, actorRole: user.role,
+      action: 'CREATION_RENDEZVOUS', module: LogModule.RENDEZVOUS,
+      description: `Rendez-vous créé le ${new Date(dto.dateHeure).toLocaleDateString('fr-FR')} — motif : ${dto.motif}`,
+      cibleId: result.id,
+    });
+    return result;
   }
 
   // ── AGENT ADMINISTRATIF : liste de tous les RDV ───────────────────────────
@@ -95,8 +107,15 @@ export class RendezVousController {
   @UseGuards(RolesGuard)
   @Roles(UserRole.AGENT_ADMINISTRATIF, UserRole.ADMINISTRATEUR)
   @ApiOperation({ summary: 'Supprimer un rendez-vous' })
-  remove(@Param('id') id: string) {
-    return this.rdvService.remove(id);
+  async remove(@Param('id') id: string, @CurrentUser() user: User) {
+    const result = await this.rdvService.remove(id);
+    this.logService.log({
+      actorId: user.id, actorNom: `${user.prenom} ${user.nom}`, actorRole: user.role,
+      action: 'SUPPRESSION_RENDEZVOUS', module: LogModule.RENDEZVOUS,
+      description: `Suppression du rendez-vous #${id}`,
+      cibleId: id,
+    });
+    return result;
   }
 
   // ── MODIFIER LE STATUT D'UN RDV ───────────────────────────────────────────

@@ -5,6 +5,8 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -25,6 +27,8 @@ import { ResetPasswordDto } from './users/dto/reset-password.dto';
 import { FilterUsersDto } from './users/dto/filter-users.dto';
 import { DebloquerCompteDto } from './users/dto/debloquer-compte.dto';
 import { SupabaseStorageService } from '../storage/supabase-storage.service';
+import { ActivityLogService, LogData } from '../activity-log/activity-log.service';
+import { LogModule } from '../activity-log/activity-log.entity';
 import { JwtPayload } from './strategies/jwt.strategy';
 
 export interface AuthTokens {
@@ -59,7 +63,11 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly storageService: SupabaseStorageService,
+    @Inject(forwardRef(() => ActivityLogService))
+    private readonly logService: ActivityLogService,
   ) {}
+
+  private _log(data: LogData): void { this.logService.log(data); }
 
   // ── INSCRIPTION ADMINISTRATEUR (premier admin du système, route publique) ─
   async inscrire(dto: CreateUserDto): Promise<{ message: string }> {
@@ -150,6 +158,13 @@ export class AuthService {
       await this.medecinRepository.save(profil);
     }
 
+    const admin = await this.userRepository.findOne({ where: { id: adminId }, select: { id: true, nom: true, prenom: true, role: true } });
+    this._log({
+      actorId: adminId, actorNom: admin ? `${admin.prenom} ${admin.nom}` : null, actorRole: admin?.role ?? null,
+      action: 'CREATION_COMPTE', module: LogModule.AUTH,
+      description: `Création du compte ${dto.role} pour ${dto.prenom} ${dto.nom} (${dto.email})`,
+      cible: `${dto.prenom} ${dto.nom}`, cibleId: user.id,
+    });
     const statut = actif ? 'actif' : 'inactif par défaut';
     return { message: `Compte ${dto.role} créé avec succès. Il est ${statut}.` };
   }
@@ -161,6 +176,12 @@ export class AuthService {
     if (user.actif) throw new ConflictException('Ce compte est déjà actif.');
 
     await this.userRepository.update(userId, { actif: true });
+    this._log({
+      actorId: null, actorNom: 'Administrateur', actorRole: UserRole.ADMINISTRATEUR,
+      action: 'ACTIVATION_COMPTE', module: LogModule.AUTH,
+      description: `Activation du compte de ${user.prenom} ${user.nom}`,
+      cible: `${user.prenom} ${user.nom}`, cibleId: userId,
+    });
     return { message: 'Compte activé avec succès.' };
   }
 
@@ -171,6 +192,12 @@ export class AuthService {
     if (!user.actif) throw new ConflictException('Ce compte est déjà inactif.');
 
     await this.userRepository.update(userId, { actif: false });
+    this._log({
+      actorId: null, actorNom: 'Administrateur', actorRole: UserRole.ADMINISTRATEUR,
+      action: 'DESACTIVATION_COMPTE', module: LogModule.AUTH,
+      description: `Désactivation du compte de ${user.prenom} ${user.nom}`,
+      cible: `${user.prenom} ${user.nom}`, cibleId: userId,
+    });
     return { message: 'Compte désactivé avec succès.' };
   }
 
@@ -294,6 +321,12 @@ export class AuthService {
     }
 
     await this.userRepository.save(user);
+    this._log({
+      actorId: null, actorNom: 'Administrateur', actorRole: UserRole.ADMINISTRATEUR,
+      action: 'MODIFICATION_COMPTE', module: LogModule.AUTH,
+      description: `Modification du profil de ${user.prenom} ${user.nom}`,
+      cible: `${user.prenom} ${user.nom}`, cibleId: userId,
+    });
     return { message: 'Compte mis à jour avec succès.' };
   }
 
@@ -306,6 +339,12 @@ export class AuthService {
     }
 
     await this.userRepository.update(userId, { role: dto.role });
+    this._log({
+      actorId: null, actorNom: 'Administrateur', actorRole: UserRole.ADMINISTRATEUR,
+      action: 'CHANGEMENT_ROLE', module: LogModule.AUTH,
+      description: `Changement de rôle : ${user.prenom} ${user.nom} → ${dto.role}`,
+      cible: `${user.prenom} ${user.nom}`, cibleId: userId,
+    });
     return { message: `Rôle mis à jour : ${dto.role}.` };
   }
 
@@ -319,6 +358,12 @@ export class AuthService {
 
     user.motDePasse = dto.nouveauMotDePasse;
     await this.userRepository.save(user);
+    this._log({
+      actorId: null, actorNom: 'Administrateur', actorRole: UserRole.ADMINISTRATEUR,
+      action: 'REINITIALISATION_MDP', module: LogModule.AUTH,
+      description: `Réinitialisation du mot de passe de ${user.prenom} ${user.nom}`,
+      cible: `${user.prenom} ${user.nom}`, cibleId: userId,
+    });
     return { message: 'Mot de passe réinitialisé avec succès.' };
   }
 
@@ -327,6 +372,12 @@ export class AuthService {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('Utilisateur introuvable.');
 
+    this._log({
+      actorId: null, actorNom: 'Administrateur', actorRole: UserRole.ADMINISTRATEUR,
+      action: 'SUPPRESSION_COMPTE', module: LogModule.AUTH,
+      description: `Suppression du compte de ${user.prenom} ${user.nom} (${user.email}) — rôle : ${user.role}`,
+      cible: `${user.prenom} ${user.nom}`, cibleId: userId,
+    });
     await this.userRepository.delete(userId);
     return { message: 'Compte supprimé avec succès.' };
   }
@@ -364,6 +415,13 @@ export class AuthService {
     const msg = dto.nouveauMotDePasse
       ? 'Compte débloqué et mot de passe réinitialisé avec succès.'
       : 'Compte débloqué avec succès.';
+    const adminInfo = await this.userRepository.findOne({ where: { id: adminId }, select: { id: true, nom: true, prenom: true, role: true } });
+    this._log({
+      actorId: adminId, actorNom: adminInfo ? `${adminInfo.prenom} ${adminInfo.nom}` : null, actorRole: adminInfo?.role ?? null,
+      action: 'DEBLOCAGE_COMPTE', module: LogModule.AUTH,
+      description: `Déblocage du compte de ${user.prenom} ${user.nom}${dto.nouveauMotDePasse ? ' avec réinitialisation du mot de passe' : ''}`,
+      cible: `${user.prenom} ${user.nom}`, cibleId: userId,
+    });
     return { message: msg };
   }
 
@@ -418,6 +476,12 @@ export class AuthService {
     const tokens = await this._genererTokens(user);
     await this._sauvegarderRefreshToken(user.id, tokens.refreshToken);
 
+    this._log({
+      actorId: user.id, actorNom: `${user.prenom} ${user.nom}`, actorRole: user.role,
+      action: 'CONNEXION', module: LogModule.AUTH,
+      description: `Connexion réussie de ${user.prenom} ${user.nom} (${user.email}) — rôle : ${user.role}`,
+    });
+
     return {
       tokens,
       user: {
@@ -444,7 +508,15 @@ export class AuthService {
 
   // ── DÉCONNEXION ───────────────────────────────────────────────────────────
   async logout(userId: string): Promise<{ message: string }> {
+    const user = await this.userRepository.findOne({ where: { id: userId }, select: { id: true, nom: true, prenom: true, role: true } });
     await this.userRepository.update(userId, { refreshToken: null });
+    if (user) {
+      this._log({
+        actorId: userId, actorNom: `${user.prenom} ${user.nom}`, actorRole: user.role,
+        action: 'DECONNEXION', module: LogModule.AUTH,
+        description: `Déconnexion de ${user.prenom} ${user.nom}`,
+      });
+    }
     return { message: 'Déconnexion réussie.' };
   }
 

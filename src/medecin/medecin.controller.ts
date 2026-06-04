@@ -43,6 +43,8 @@ import { MessageResponse } from '../auth/dto/auth.responses';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../auth/users/entities/user.entity';
 import { SupabaseStorageService } from '../storage/supabase-storage.service';
+import { ActivityLogService } from '../activity-log/activity-log.service';
+import { LogModule } from '../activity-log/activity-log.entity';
 
 const documentFilter = (
   _req: any,
@@ -63,6 +65,7 @@ export class MedecinController {
   constructor(
     private readonly medecinService: MedecinService,
     private readonly storageService: SupabaseStorageService,
+    private readonly logService: ActivityLogService,
   ) {}
 
   // ── PROFIL ────────────────────────────────────────────────────────────────
@@ -78,8 +81,15 @@ export class MedecinController {
   @ApiResponse({ status: 400, description: 'L\'utilisateur n\'a pas le rôle MEDECIN.' })
   @ApiResponse({ status: 404, description: 'Utilisateur introuvable.' })
   @ApiResponse({ status: 409, description: 'Profil déjà existant ou numéro d\'ordre en double.' })
-  create(@Body() dto: CreateMedecinDto): Promise<Medecin> {
-    return this.medecinService.create(dto);
+  async create(@Body() dto: CreateMedecinDto, @CurrentUser() user: User): Promise<Medecin> {
+    const result = await this.medecinService.create(dto);
+    this.logService.log({
+      actorId: user.id, actorNom: `${user.prenom} ${user.nom}`, actorRole: user.role,
+      action: 'CREATION_PROFIL_MEDECIN', module: LogModule.MEDECIN,
+      description: `Création du profil médecin pour l'utilisateur #${dto.userId}`,
+      cible: `Médecin #${result.id}`, cibleId: result.id,
+    });
+    return result;
   }
 
   @Get()
