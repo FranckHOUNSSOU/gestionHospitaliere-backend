@@ -23,6 +23,7 @@ import { UpdateUserDto } from './users/dto/update-user.dto';
 import { UpdateRoleDto } from './users/dto/update-role.dto';
 import { ResetPasswordDto } from './users/dto/reset-password.dto';
 import { FilterUsersDto } from './users/dto/filter-users.dto';
+import { DebloquerCompteDto } from './users/dto/debloquer-compte.dto';
 import { JwtPayload } from './strategies/jwt.strategy';
 
 export interface AuthTokens {
@@ -181,19 +182,21 @@ export class AuthService {
 
     const users = await this.userRepository.find({
       select: {
-        id:               true,
-        nom:              true,
-        prenom:           true,
-        email:            true,
-        role:             true,
-        telephone:        true,
-        numeroOrdre:      true,
-        actif:            true,
-        createdAt:        true,
-        derniereConnexion:true,
-        pole:             { id: true, nom: true },
-        service:          { id: true, nom: true, code: true },
-        createur:         { id: true, nom: true, prenom: true },
+        id:                   true,
+        nom:                  true,
+        prenom:               true,
+        email:                true,
+        role:                 true,
+        telephone:            true,
+        numeroOrdre:          true,
+        actif:                true,
+        compteBloque:         true,
+        tentativesConnexion:  true,
+        createdAt:            true,
+        derniereConnexion:    true,
+        pole:                 { id: true, nom: true },
+        service:              { id: true, nom: true, code: true },
+        createur:             { id: true, nom: true, prenom: true },
       },
       relations: { pole: true, service: true, createur: true },
       where,
@@ -225,20 +228,22 @@ export class AuthService {
     const user = await this.userRepository.findOne({
       where: { id: userId },
       select: {
-        id:               true,
-        nom:              true,
-        prenom:           true,
-        email:            true,
-        role:             true,
-        telephone:        true,
-        numeroOrdre:      true,
-        actif:            true,
-        createdAt:        true,
-        updatedAt:        true,
-        derniereConnexion:true,
-        pole:             { id: true, nom: true },
-        service:          { id: true, nom: true, code: true },
-        createur:         { id: true, nom: true, prenom: true },
+        id:                   true,
+        nom:                  true,
+        prenom:               true,
+        email:                true,
+        role:                 true,
+        telephone:            true,
+        numeroOrdre:          true,
+        actif:                true,
+        compteBloque:         true,
+        tentativesConnexion:  true,
+        createdAt:            true,
+        updatedAt:            true,
+        derniereConnexion:    true,
+        pole:                 { id: true, nom: true },
+        service:              { id: true, nom: true, code: true },
+        createur:             { id: true, nom: true, prenom: true },
       },
       relations: { pole: true, service: true, createur: true },
     });
@@ -323,6 +328,42 @@ export class AuthService {
     return { message: 'Compte supprimé avec succès.' };
   }
 
+  // ── DÉBLOCAGE D'UN COMPTE (admin) ─────────────────────────────────────────
+  async debloquerCompte(
+    adminId: string,
+    userId: string,
+    dto: DebloquerCompteDto,
+  ): Promise<{ message: string }> {
+    const admin = await this.userRepository.findOne({
+      where: { id: adminId },
+      select: { id: true, motDePasse: true },
+    });
+    if (!admin) throw new NotFoundException('Administrateur introuvable.');
+
+    const mdpValide = await bcrypt.compare(dto.motDePasseAdmin, admin.motDePasse);
+    if (!mdpValide) {
+      throw new UnauthorizedException('Mot de passe administrateur incorrect.');
+    }
+
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Utilisateur introuvable.');
+    if (!user.compteBloque) {
+      throw new BadRequestException("Ce compte n'est pas bloqué.");
+    }
+
+    user.compteBloque = false;
+    user.tentativesConnexion = 0;
+    if (dto.nouveauMotDePasse) {
+      user.motDePasse = dto.nouveauMotDePasse;
+    }
+    await this.userRepository.save(user);
+
+    const msg = dto.nouveauMotDePasse
+      ? 'Compte débloqué et mot de passe réinitialisé avec succès.'
+      : 'Compte débloqué avec succès.';
+    return { message: msg };
+  }
+
   // ── CONNEXION ─────────────────────────────────────────────────────────────
   async login(dto: LoginDto): Promise<AuthResponse> {
     const user = await this.userRepository.findOne({
@@ -330,22 +371,49 @@ export class AuthService {
       select: {
         id: true, nom: true, prenom: true, email: true,
         motDePasse: true, role: true, actif: true,
+        compteBloque: true, tentativesConnexion: true,
         pole: { id: true, nom: true },
       },
       relations: { pole: true },
     });
 
     if (!user) throw new UnauthorizedException('Identifiants incorrects.');
+
+    if (user.compteBloque) {
+      throw new UnauthorizedException(
+        'Votre compte a été bloqué suite à trop de tentatives échouées. Contactez un administrateur.',
+      );
+    }
+
     if (!user.actif) {
       throw new UnauthorizedException('Votre compte est inactif. Contactez un administrateur.');
     }
 
     const motDePasseValide = await bcrypt.compare(dto.motDePasse, user.motDePasse);
-    if (!motDePasseValide) throw new UnauthorizedException('Identifiants incorrects.');
+    if (!motDePasseValide) {
+      const nouvelleTentative = user.tentativesConnexion + 1;
+      const bloque = nouvelleTentative >= 5;
+      await this.userRepository.update(user.id, {
+        tentativesConnexion: nouvelleTentative,
+        compteBloque: bloque,
+      });
+      if (bloque) {
+        throw new UnauthorizedException(
+          'Compte bloqué : 5 tentatives échouées consécutives. Contactez un administrateur.',
+        );
+      }
+      throw new UnauthorizedException(
+        `Identifiants incorrects. Tentative ${nouvelleTentative}/5.`,
+      );
+    }
+
+    await this.userRepository.update(user.id, {
+      tentativesConnexion: 0,
+      derniereConnexion: new Date(),
+    });
 
     const tokens = await this._genererTokens(user);
     await this._sauvegarderRefreshToken(user.id, tokens.refreshToken);
-    await this.userRepository.update(user.id, { derniereConnexion: new Date() });
 
     return {
       tokens,

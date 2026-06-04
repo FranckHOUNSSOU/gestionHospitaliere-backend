@@ -29,6 +29,7 @@ import { UpdateUserDto } from './users/dto/update-user.dto';
 import { UpdateRoleDto } from './users/dto/update-role.dto';
 import { ResetPasswordDto } from './users/dto/reset-password.dto';
 import { FilterUsersDto } from './users/dto/filter-users.dto';
+import { DebloquerCompteDto } from './users/dto/debloquer-compte.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { RolesGuard } from './guards/roles.guard';
@@ -161,6 +162,31 @@ export class AuthController {
   @ApiResponse({ status: 403, description: 'Accès réservé à l\'administrateur.' })
   reinitialiserMotDePasse(@Param('id') id: string, @Body() dto: ResetPasswordDto) {
     return this.authService.reinitialiserMotDePasse(id, dto);
+  }
+
+  @Patch('users/:id/debloquer')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMINISTRATEUR)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({
+    summary: 'Débloquer un compte (admin)',
+    description:
+      "Débloque un compte verrouillé après trop de tentatives. L'admin doit fournir son propre mot de passe. " +
+      'Un nouveau mot de passe peut être attribué simultanément.',
+  })
+  @ApiParam({ name: 'id', description: "UUID de l'utilisateur à débloquer" })
+  @ApiBody({ type: DebloquerCompteDto })
+  @ApiResponse({ status: 200, description: 'Compte débloqué.', type: MessageResponse })
+  @ApiResponse({ status: 400, description: "Le compte n'est pas bloqué." })
+  @ApiResponse({ status: 401, description: 'Mot de passe administrateur incorrect.' })
+  @ApiResponse({ status: 404, description: 'Utilisateur introuvable.' })
+  @ApiResponse({ status: 403, description: "Accès réservé à l'administrateur." })
+  debloquerCompte(
+    @CurrentUser() admin: User,
+    @Param('id') id: string,
+    @Body() dto: DebloquerCompteDto,
+  ) {
+    return this.authService.debloquerCompte(admin.id, id, dto);
   }
 
   @Patch('users/:id/activer')
