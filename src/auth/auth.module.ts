@@ -12,6 +12,7 @@ import { User } from './users/entities/user.entity';
 import { Pole } from '../service/pole.entity';
 import { Service } from '../service/service.entity';
 import { Medecin } from '../medecin/entities/medecin.entity';
+import { SupabaseStorageService } from '../storage/supabase-storage.service';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { Medecin } from '../medecin/entities/medecin.entity';
     AuthService,
     JwtStrategy,
     JwtRefreshStrategy,
+    SupabaseStorageService,
   ],
   exports: [AuthService, JwtModule, PassportModule],
 })

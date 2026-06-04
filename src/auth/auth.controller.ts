@@ -10,7 +10,13 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { ApiConsumes } from '@nestjs/swagger';
 import {
   ApiTags,
   ApiOperation,
@@ -271,5 +277,40 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Non authentifié.' })
   profil(@CurrentUser() user: User) {
     return this.authService.profil(user.id);
+  }
+
+  @Post('profil/photo')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('access-token')
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Uploader la photo de profil',
+    description: 'Upload une photo de profil (image ≤ 5 Mo) et met à jour le champ photoUrl de l\'utilisateur connecté.',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { fichier: { type: 'string', format: 'binary' } },
+    },
+  })
+  @ApiResponse({ status: 200, description: 'URL de la photo.', schema: { example: { url: 'https://…' } } })
+  @ApiResponse({ status: 400, description: 'Aucun fichier ou format non supporté.' })
+  @UseInterceptors(FileInterceptor('fichier', {
+    storage: memoryStorage(),
+    fileFilter: (_req, file, cb) => {
+      if (!file.mimetype.startsWith('image/')) {
+        return cb(new BadRequestException('Seules les images sont acceptées.'), false);
+      }
+      cb(null, true);
+    },
+    limits: { fileSize: 5 * 1024 * 1024 },
+  }))
+  uploadProfilPhoto(
+    @CurrentUser() user: User,
+    @UploadedFile() file: Express.Multer.File,
+  ): Promise<{ url: string }> {
+    if (!file) throw new BadRequestException('Aucun fichier envoyé.');
+    return this.authService.uploadProfilPhoto(user.id, file);
   }
 }
