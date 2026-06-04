@@ -184,7 +184,7 @@ export class SejourController {
     this.logService.log({
       actorId: user.id, actorNom: `${user.prenom} ${user.nom}`, actorRole: user.role,
       action: 'MOUVEMENT_PATIENT', module: LogModule.SEJOUR,
-      description: `Mouvement enregistré sur le séjour — type : ${dto.typeMouvement ?? 'transfert'}`,
+      description: `Transfert vers ${dto.serviceArrivee}${dto.serviceDepart ? ` depuis ${dto.serviceDepart}` : ''}${dto.motifTransfertInterne ? ` — motif : ${dto.motifTransfertInterne}` : ''}`,
       cible: `Séjour #${id}`, cibleId: id,
     });
     return result;
