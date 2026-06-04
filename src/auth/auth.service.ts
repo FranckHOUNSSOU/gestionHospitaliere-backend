@@ -9,7 +9,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, Repository } from 'typeorm';
+import { FindOptionsWhere, In, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 
 import { User, UserRole } from './users/entities/user.entity';
@@ -172,14 +172,14 @@ export class AuthService {
   }
 
   // ── LISTE DES UTILISATEURS (avec filtres optionnels) ─────────────────────
-  async listerUtilisateurs(filters: FilterUsersDto): Promise<Partial<User>[]> {
+  async listerUtilisateurs(filters: FilterUsersDto): Promise<(Partial<User> & { photoUrl?: string | null })[]> {
     const where: FindOptionsWhere<User> = {};
     if (filters.role      !== undefined) where.role    = filters.role;
     if (filters.actif     !== undefined) where.actif   = filters.actif;
     if (filters.poleId    !== undefined) where.pole    = { id: filters.poleId } as any;
     if (filters.serviceId !== undefined) where.service = { id: filters.serviceId } as any;
 
-    return this.userRepository.find({
+    const users = await this.userRepository.find({
       select: {
         id:               true,
         nom:              true,
@@ -199,6 +199,25 @@ export class AuthService {
       where,
       order: { createdAt: 'DESC' },
     });
+
+    const medecinIds = users
+      .filter(u => u.role === UserRole.MEDECIN)
+      .map(u => u.id);
+
+    if (medecinIds.length === 0) return users;
+
+    const medecins = await this.medecinRepository.find({
+      where: { user: { id: In(medecinIds) } },
+      select: { photoUrl: true, user: { id: true } },
+      relations: { user: true },
+    });
+
+    const photoMap = new Map(medecins.map(m => [m.user.id, m.photoUrl ?? null]));
+
+    return users.map(u => ({
+      ...u,
+      photoUrl: photoMap.get(u.id) ?? null,
+    }));
   }
 
   // ── VOIR UN UTILISATEUR ───────────────────────────────────────────────────
