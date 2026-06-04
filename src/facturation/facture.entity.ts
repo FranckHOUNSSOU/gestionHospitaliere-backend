@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn, RelationId } from 'typeorm';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Patient } from '../patient/entities/patient.entity';
 
@@ -17,12 +17,12 @@ export class Facture {
   @Column({ name: 'numero_facture', type: 'varchar', length: 20, unique: true })
   numeroFacture!: string;
 
-  @ManyToOne(() => Patient, { onDelete: 'RESTRICT', eager: false })
+  @ManyToOne(() => Patient, { onDelete: 'RESTRICT', eager: false, nullable: true })
   @JoinColumn({ name: 'patient_id' })
-  patient!: Patient;
+  patient!: Patient | null;
 
-  @Column({ name: 'patient_id' })
-  patientId!: string;
+  @RelationId((f: Facture) => f.patient)
+  patientId!: string | null;
 
   @ApiProperty()
   @Column({ name: 'patient_nom', type: 'varchar', length: 100 })
@@ -36,9 +36,9 @@ export class Facture {
   @Column({ name: 'montant_total', type: 'decimal', precision: 12, scale: 2, default: 0 })
   montantTotal!: number;
 
-  @ApiProperty({ enum: StatutFacture })
-  @Column({ name: 'statut', type: 'enum', enum: StatutFacture, default: StatutFacture.EMISE })
-  statut!: StatutFacture;
+  @ApiProperty()
+  @Column({ name: 'statut', type: 'varchar', length: 20, default: 'Émise' })
+  statut!: string;
 
   @ApiPropertyOptional()
   @Column({ name: 'snapshot', type: 'json', nullable: true })
