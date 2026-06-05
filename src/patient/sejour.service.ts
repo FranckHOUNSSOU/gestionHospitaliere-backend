@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  ForbiddenException,
   OnModuleInit,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -409,7 +410,21 @@ export class SejourService implements OnModuleInit {
     dto: CreatePrescriptionDto,
     actorUserId?: string,
   ): Promise<Prescription> {
-    const sejour = await this.findSejour(sejourId);
+    const sejour = await this.sejourRepo.findOne({
+      where: { id: sejourId },
+      relations: ['medecinResponsable', 'medecinResponsable.user'],
+    });
+    if (!sejour) throw new NotFoundException(`Séjour introuvable (id: ${sejourId}).`);
+
+    if (actorUserId) {
+      const responsableUserId = sejour.medecinResponsable?.user?.id;
+      if (!responsableUserId || responsableUserId !== actorUserId) {
+        throw new ForbiddenException(
+          'Seul le médecin responsable du séjour peut établir une prescription. Utilisez "Prendre en charge" pour devenir responsable.',
+        );
+      }
+    }
+
     const medecin = await this.findMedecinIfProvided(dto.medecinPrescripteurId ?? actorUserId);
     const prescription = this.prescriptionRepo.create({
       sejour,
