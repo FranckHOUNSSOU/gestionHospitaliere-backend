@@ -3,6 +3,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AuthModule } from './auth/auth.module';
 import { ServiceModule } from './service/service.module';
 import { MedecinModule } from './medecin/medecin.module';
@@ -50,6 +51,8 @@ import { VoletNutritionnel } from './patient/entities/volet-nutritionnel.entity'
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
+
     // ── Variables d'environnement ──────────────────────────────────────────
     ConfigModule.forRoot({
       isGlobal: true,

@@ -22,18 +22,21 @@ import { VoletSocial } from './entities/volet-social.entity';
 import { VoletNutritionnel } from './entities/volet-nutritionnel.entity';
 import { PatientService } from './patient.service';
 import { SejourService } from './sejour.service';
+import { ConsultationAnomalieService } from './consultation-anomalie.service';
 import { PatientController } from './patient.controller';
 import { SejourController } from './sejour.controller';
 import { AuthModule } from '../auth/auth.module';
 import { MedecinModule } from '../medecin/medecin.module';
 import { ActivityLogModule } from '../activity-log/activity-log.module';
 import { User } from '../auth/users/entities/user.entity';
+import { Notification } from '../notification/notification.entity';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([
       Patient,
       User,
+      Notification,
       Allergie,
       TraitementARisque,
       ContactUrgence,
@@ -57,7 +60,7 @@ import { User } from '../auth/users/entities/user.entity';
     ActivityLogModule,
   ],
   controllers: [PatientController, SejourController],
-  providers: [PatientService, SejourService],
+  providers: [PatientService, SejourService, ConsultationAnomalieService],
   exports: [PatientService, SejourService],
 })
 export class PatientModule {}
