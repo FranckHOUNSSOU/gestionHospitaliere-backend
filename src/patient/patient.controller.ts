@@ -200,6 +200,26 @@ export class PatientController {
     return this.patientService.completerProfil(id, dto);
   }
 
+  @Delete(':id')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.AGENT_RENSEIGNEMENT, UserRole.AGENT_ADMINISTRATIF, UserRole.ADMINISTRATEUR)
+  @ApiOperation({ summary: 'Supprimer un patient', description: 'Supprime un dossier patient uniquement s\'il n\'a aucun séjour enregistré.' })
+  @ApiParam({ name: 'id', description: 'UUID du patient' })
+  @ApiResponse({ status: 200, description: 'Patient supprimé.' })
+  @ApiResponse({ status: 400, description: 'Patient possède des séjours — suppression refusée.' })
+  @ApiResponse({ status: 404, description: 'Patient introuvable.' })
+  async deletePatient(@Param('id') id: string, @CurrentUser() user: User): Promise<{ message: string }> {
+    const result = await this.patientService.deletePatient(id);
+    this.logService.log({
+      actorId: user.id, actorNom: `${user.prenom} ${user.nom}`, actorRole: user.role,
+      action: 'SUPPRESSION_PATIENT', module: LogModule.PATIENT,
+      description: result.message,
+      cible: id, cibleId: id,
+    });
+    return result;
+  }
+
   // ── ALLERGIES ─────────────────────────────────────────────────────────────
 
   @Post(':id/allergies')
