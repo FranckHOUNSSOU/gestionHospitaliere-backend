@@ -210,7 +210,15 @@ export class SejourService implements OnModuleInit {
     await this.findPatient(patientId);
     return this.sejourRepo.findOne({
       where: { patient: { id: patientId }, dateSortie: IsNull() },
-      relations: ['diagnostics', 'mouvements', 'medecinResponsable', 'medecinResponsable.user'],
+      relations: [
+        'diagnostics',
+        'mouvements',
+        'medecinResponsable',
+        'medecinResponsable.user',
+        'prescriptions',
+        'prescriptions.medecinPrescripteur',
+        'prescriptions.medecinPrescripteur.user',
+      ],
     });
   }
 
