@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, Or, Repository } from 'typeorm';
@@ -59,6 +60,7 @@ export class PatientService {
         'allergies', 'traitementsARisque', 'contactsUrgence', 'couverturesSociales',
         'sejours', 'sejours.mouvements',
         'sejours.medecinResponsable', 'sejours.medecinResponsable.user',
+        'creePar',
       ],
       order: { nom: 'ASC', prenom: 'ASC' },
     });
@@ -92,6 +94,21 @@ export class PatientService {
     }
     Object.assign(patient, dto);
     return this.patientRepo.save(patient);
+  }
+
+  async deletePatient(id: string): Promise<{ message: string }> {
+    const patient = await this.patientRepo.findOne({
+      where: { id },
+      relations: ['sejours'],
+    });
+    if (!patient) throw new NotFoundException(`Patient introuvable (id: ${id}).`);
+    if (patient.sejours && patient.sejours.length > 0) {
+      throw new BadRequestException(
+        `Impossible de supprimer ce patient : il possède ${patient.sejours.length} séjour(s) enregistré(s).`,
+      );
+    }
+    await this.patientRepo.remove(patient);
+    return { message: `Dossier de ${patient.prenom} ${patient.nom} supprimé avec succès.` };
   }
 
   async getDossierComplet(id: string): Promise<Patient> {
