@@ -12,12 +12,13 @@ import { User } from './users/entities/user.entity';
 import { Pole } from '../service/pole.entity';
 import { Service } from '../service/service.entity';
 import { Medecin } from '../medecin/entities/medecin.entity';
+import { Patient } from '../patient/entities/patient.entity';
 import { SupabaseStorageService } from '../storage/supabase-storage.service';
 import { ActivityLogModule } from '../activity-log/activity-log.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Pole, Service, Medecin]),
+    TypeOrmModule.forFeature([User, Pole, Service, Medecin, Patient]),
 
     PassportModule.register({ defaultStrategy: 'jwt' }),
 

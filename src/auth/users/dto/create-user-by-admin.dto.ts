@@ -1,15 +1,18 @@
 import {
   IsEmail,
+  IsEnum,
   IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
+  IsDateString,
   MinLength,
   MaxLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { UserRole } from '../entities/user.entity';
+import { SexePatient } from '../../../patient/entities/patient.entity';
 
 export class CreateUserByAdminDto {
   @ApiProperty({ example: 'Dupont', description: 'Nom de famille' })
@@ -68,9 +71,19 @@ export class CreateUserByAdminDto {
   @IsUUID('4', { message: "L'identifiant du service doit être un UUID valide." })
   serviceId?: string;
 
-  @ApiPropertyOptional({ example: 'ORD-2024-001', description: "Numéro d'ordre professionnel" })
+  @ApiPropertyOptional({ example: 'ORD-2024-001', description: "Numéro d'ordre professionnel (sert aussi d'identifiant dans le dossier du personnel)" })
   @IsOptional()
   @IsString()
   @MaxLength(50)
   numeroOrdre?: string;
+
+  @ApiPropertyOptional({ example: '1985-06-20', description: 'Date de naissance (pour le dossier auto-créé du personnel)' })
+  @IsOptional()
+  @IsDateString()
+  dateNaissance?: string;
+
+  @ApiPropertyOptional({ enum: SexePatient, description: 'Sexe (pour le dossier auto-créé du personnel)' })
+  @IsOptional()
+  @IsEnum(SexePatient)
+  sexe?: SexePatient;
 }

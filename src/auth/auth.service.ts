@@ -18,6 +18,7 @@ import { User, UserRole } from './users/entities/user.entity';
 import { Pole } from '../service/pole.entity';
 import { Service } from '../service/service.entity';
 import { Medecin } from '../medecin/entities/medecin.entity';
+import { Patient, SexePatient, StatutProfil } from '../patient/entities/patient.entity';
 import { LoginDto } from './dto/login.dto';
 import { CreateUserDto } from './users/dto/create-user.dto';
 import { CreateUserByAdminDto } from './users/dto/create-user-by-admin.dto';
@@ -60,6 +61,8 @@ export class AuthService {
     private readonly serviceRepository: Repository<Service>,
     @InjectRepository(Medecin)
     private readonly medecinRepository: Repository<Medecin>,
+    @InjectRepository(Patient)
+    private readonly patientRepository: Repository<Patient>,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly storageService: SupabaseStorageService,
@@ -156,6 +159,25 @@ export class AuthService {
         numeroOrdre: dto.numeroOrdre ?? `AUTO-${user.id.slice(0, 8)}`,
       });
       await this.medecinRepository.save(profil);
+    }
+
+    // Création automatique du dossier hospitalier pour tout le personnel (hors administrateur)
+    if (dto.role !== UserRole.ADMINISTRATEUR) {
+      const refOrdre = (dto.numeroOrdre ?? user.id.slice(0, 8)).substring(0, 15);
+      const numeroIpp = `MAT-${refOrdre}`;
+      const dossier = this.patientRepository.create({
+        numeroIpp,
+        nom:                  dto.nom,
+        prenom:               dto.prenom,
+        sexe:                 dto.sexe ?? SexePatient.AUTRE,
+        dateNaissance:        dto.dateNaissance ? new Date(dto.dateNaissance) : new Date('1970-01-01'),
+        telephoneMobile:      dto.telephone ?? null,
+        email:                dto.email,
+        statutProfil:         StatutProfil.INCOMPLET,
+        estPersonnelHospitalier: true,
+        userLie:              user,
+      } as Partial<Patient>);
+      await this.patientRepository.save(dossier);
     }
 
     const admin = await this.userRepository.findOne({ where: { id: adminId }, select: { id: true, nom: true, prenom: true, role: true } });
