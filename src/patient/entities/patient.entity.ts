@@ -197,6 +197,15 @@ export class Patient {
   @JoinColumn({ name: 'cree_par_id' })
   creePar!: User | null;
 
+  @ApiProperty({ example: false, description: 'Vrai si ce dossier appartient à un agent hospitalier (médecin, secrétaire, agent de renseignement)' })
+  @Column({ name: 'est_personnel_hospitalier', default: false })
+  estPersonnelHospitalier!: boolean;
+
+  @ApiPropertyOptional({ description: 'Compte utilisateur lié à ce dossier (personnel hospitalier uniquement)', nullable: true })
+  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL', eager: false })
+  @JoinColumn({ name: 'user_lie_id' })
+  userLie!: User | null;
+
   @ApiProperty({ example: '2026-04-14T10:00:00.000Z', description: 'Date de création' })
   @CreateDateColumn()
   createdAt!: Date;

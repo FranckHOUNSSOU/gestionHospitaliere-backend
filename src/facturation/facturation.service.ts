@@ -64,6 +64,30 @@ export class FacturationService implements OnModuleInit {
     const patient = await this.patientRepo.findOne({ where: { id: patientId } });
     if (!patient) return null;
 
+    // Personnel hospitalier : gratuité totale
+    if (patient.estPersonnelHospitalier) {
+      return {
+        patient: {
+          id:            patient.id,
+          nom:           patient.nom,
+          prenom:        patient.prenom,
+          numeroIpp:     patient.numeroIpp,
+          dateNaissance: patient.dateNaissance,
+          estPersonnelHospitalier: true,
+        },
+        lignesHospitalisation:  [],
+        sejours:                [],
+        consultations:          [],
+        totalHospitalisation:   0,
+        totalExamens:           0,
+        totalSoins:             0,
+        totalConsultations:     0,
+        totalGeneral:           0,
+        tarifs:                 {},
+        genereLe:               new Date().toISOString(),
+      };
+    }
+
     // 2. Tarifs (map par code)
     const tarifs = await this.tarifRepo.find({ where: { estActif: true } });
     const tarifMap = new Map(tarifs.map(t => [t.code, Number(t.prixUnitaire)]));
